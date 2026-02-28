@@ -37,10 +37,14 @@
 
 #ifdef _WIN32
 #	include <win32/win32dep.h>
+#else
+#	include <arpa/inet.h>
+#	include <unistd.h>
+#	include <fcntl.h>
 #endif
 
 #ifdef HAVE_CYRUS_SASL
-#include <sasl/sasl.h>
+#	include <sasl/sasl.h>
 #endif
 
 #ifdef ENABLE_NLS
@@ -56,16 +60,6 @@
 #      define _(a) (a)
 #      define N_(a) (a)
 #endif
-
-
-#if !GLIB_CHECK_VERSION(2, 32, 0)
-static inline void
-g_queue_free_full(GQueue *queue, GDestroyNotify free_func)
-{
-    g_queue_foreach(queue, (GFunc) free_func, NULL);
-    g_queue_free(queue);
-}
-#endif /* 2.32.0 */
 
 #if !GLIB_CHECK_VERSION(2, 68, 0) && !PURPLE_VERSION_CHECK(2, 14, 2)
 #define g_memdup2(mem,size) g_memdup((mem),(size))

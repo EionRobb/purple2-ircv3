@@ -597,7 +597,8 @@ static void irc_close(PurpleConnection *gc)
 		g_string_free(irc->motd, TRUE);
 	g_free(irc->server);
 
-	g_queue_free_full(irc->send_queue, g_free);
+    g_queue_foreach(irc->send_queue, (GFunc) g_free, NULL);
+    g_queue_free(irc->send_queue);
 	if(irc->send_handler != 0) {
 		g_source_remove(irc->send_handler);
 	}

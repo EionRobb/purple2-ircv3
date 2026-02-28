@@ -68,7 +68,7 @@ else
 endif
 
 WIN32_CFLAGS = -I$(WIN32_DEV_TOP)/glib-2.28.8/include -I$(WIN32_DEV_TOP)/glib-2.28.8/include/glib-2.0 -I$(WIN32_DEV_TOP)/glib-2.28.8/lib/glib-2.0/include -I$(WIN32_DEV_TOP)/cyrus-sasl-2.1.26_daa1/include -DENABLE_NLS -DHAVE_CYRUS_SASL -DPACKAGE_VERSION='"$(PLUGIN_VERSION)"' -Wall -Wextra -Werror -Wno-deprecated-declarations -Wno-unused-parameter -fno-strict-aliasing -Wformat -Wno-sign-compare
-WIN32_LDFLAGS = -L$(WIN32_DEV_TOP)/glib-2.28.8/lib -L$(WIN32_DEV_TOP)/json-glib-0.14/lib -L$(WIN32_DEV_TOP)/cyrus-sasl-2.1.26_daa1/lib -lpurple -lintl -lglib-2.0 -lgobject-2.0 -lsasl2 -g -ggdb -static-libgcc -lws2_32 -lz
+WIN32_LDFLAGS = -L$(WIN32_DEV_TOP)/glib-2.28.8/lib -L$(WIN32_DEV_TOP)/cyrus-sasl-2.1.26_daa1/lib -lpurple -lintl -lglib-2.0 -lgobject-2.0 -lsasl2 -g -ggdb -static-libgcc -lws2_32 -lz
 WIN32_PIDGIN2_CFLAGS = -I$(PIDGIN_TREE_TOP)/libpurple -I$(PIDGIN_TREE_TOP) $(WIN32_CFLAGS)
 WIN32_PIDGIN3_CFLAGS = -I$(PIDGIN3_TREE_TOP)/libpurple -I$(PIDGIN3_TREE_TOP) -I$(WIN32_DEV_TOP)/gplugin-dev/gplugin $(WIN32_CFLAGS)
 WIN32_PIDGIN2_LDFLAGS = -L$(PIDGIN_TREE_TOP)/libpurple $(WIN32_LDFLAGS)
@@ -90,7 +90,7 @@ PURPLE_C_FILES := $(C_FILES)
 all: $(TARGET)
 
 libircv3.so: $(PURPLE_C_FILES) $(PURPLE_COMPAT_FILES)
-	$(CC) -fPIC $(CFLAGS) -shared -o $@ $^ $(LDFLAGS) `$(PKG_CONFIG) purple glib-2.0 zlib cyrus-sasl --libs --cflags`  $(INCLUDES) -Ipurple2compat -g -ggdb
+	$(CC) -fPIC $(CFLAGS) -shared -o $@ $^ $(LDFLAGS) `$(PKG_CONFIG) purple glib-2.0 zlib libsasl2 --libs --cflags`  $(INCLUDES) -Ipurple2compat -g -ggdb
 
 libircv3.dll: $(PURPLE_C_FILES) $(PURPLE_COMPAT_FILES)
 	$(WIN32_CC) -shared -o $@ $^ $(WIN32_PIDGIN2_CFLAGS) $(WIN32_PIDGIN2_LDFLAGS) -Ipurple2compat
@@ -101,7 +101,7 @@ install: $(TARGET)
 	install -m $(LIB_PERM) -p $(TARGET) $(DEST)
 
 installer: pidgin-ircv3.nsi libircv3.dll
-	$(MAKENSIS) "/DPIDGIN_VARIANT"="Pidgin" "/DPRODUCT_NAME"="pidgin-ircv3" "/DINSTALLER_NAME"="pidgin-ircv3-installer" "/DJSON_GLIB_DLL"="libjson-glib-1.0.dll" pidgin-ircv3.nsi
+	$(MAKENSIS) "/DPIDGIN_VARIANT"="Pidgin" "/DPRODUCT_NAME"="pidgin-ircv3" "/DINSTALLER_NAME"="pidgin-ircv3-installer" pidgin-ircv3.nsi
 
 translations: po/purple-ircv3.pot
 
