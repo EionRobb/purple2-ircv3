@@ -147,6 +147,10 @@ struct irc_conn {
 	char *mode_chars;
 	char *reqnick;
 	gboolean nickused;
+
+	gchar *current_tags;
+	gboolean cap_message_tags;
+
 #ifdef HAVE_CYRUS_SASL
 	sasl_conn_t *sasl_conn;
 	const char *current_mech;
@@ -230,9 +234,10 @@ void irc_msg_unavailable(struct irc_conn *irc, const char *name, const char *fro
 void irc_msg_unknown(struct irc_conn *irc, const char *name, const char *from, char **args);
 void irc_msg_wallops(struct irc_conn *irc, const char *name, const char *from, char **args);
 void irc_msg_whois(struct irc_conn *irc, const char *name, const char *from, char **args);
+void irc_msg_tagmsg(struct irc_conn *irc, const char *name, const char *from, char **args);
 void irc_msg_who(struct irc_conn *irc, const char *name, const char *from, char **args);
-#ifdef HAVE_CYRUS_SASL
 void irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **args);
+#ifdef HAVE_CYRUS_SASL
 void irc_msg_auth(struct irc_conn *irc, char *arg);
 void irc_msg_authenticate(struct irc_conn *irc, const char *name, const char *from, char **args);
 void irc_msg_authok(struct irc_conn *irc, const char *name, const char *from, char **args);
@@ -270,6 +275,9 @@ int irc_cmd_topic(struct irc_conn *irc, const char *cmd, const char *target, con
 int irc_cmd_wallops(struct irc_conn *irc, const char *cmd, const char *target, const char **args);
 int irc_cmd_whois(struct irc_conn *irc, const char *cmd, const char *target, const char **args);
 int irc_cmd_whowas(struct irc_conn *irc, const char *cmd, const char *target, const char **args);
+
+unsigned int irc_send_typing(PurpleConnection *gc, const char *name, PurpleTypingState state);
+unsigned int irc_conv_send_typing(PurpleConversation *conv, PurpleTypingState state, gpointer user_data);
 
 PurpleXfer *irc_dccsend_new_xfer(PurpleConnection *gc, const char *who);
 void irc_dccsend_send_file(PurpleConnection *gc, const char *who, const char *file);

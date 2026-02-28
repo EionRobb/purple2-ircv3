@@ -20,7 +20,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02111-1301  USA
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02111-1301 USA
  */
 
 #include "irc.h"
@@ -49,6 +49,7 @@ static guint irc_nick_hash(const char *nick);
 static gboolean irc_nick_equal(const char *nick1, const char *nick2);
 static void irc_buddy_free(struct irc_buddy *ib);
 
+static gulong chat_conversation_typing_signal = 0;
 PurplePlugin *_irc_plugin = NULL;
 
 static void irc_view_motd(PurplePluginAction *action)
@@ -404,6 +405,13 @@ static void irc_login(PurpleAccount *account)
 
 	purple_connection_update_progress(gc, _("Connecting"), 1, 2);
 
+	if (!chat_conversation_typing_signal) {
+		chat_conversation_typing_signal = purple_signal_connect(
+			purple_conversations_get_handle(), "chat-conversation-typing",
+			purple_connection_get_prpl(gc), PURPLE_CALLBACK(irc_conv_send_typing),
+			NULL);
+	}
+
 	if (purple_account_get_bool(account, "ssl", FALSE)) {
 		if (purple_ssl_is_supported()) {
 			irc->gsc = purple_ssl_connect(account, irc->server,
@@ -455,6 +463,13 @@ static gboolean do_login(PurpleConnection *gc) {
 		}
 		g_free(buf);
 	}
+
+	buf = irc_format(irc, "vv", "CAP", "LS 302");
+	if (irc_priority_send(irc, buf) < 0) {
+		g_free(buf);
+		return FALSE;
+	}
+	g_free(buf);
 
 	realname = purple_account_get_string(irc->account, "realname", "");
 	identname = purple_account_get_string(irc->account, "username", "");
@@ -618,6 +633,49 @@ static int irc_im_send(PurpleConnection *gc, const char *who, const char *what, 
 	irc_cmd_privmsg(irc, "msg", NULL, args);
 	g_free(plain);
 	return 1;
+}
+
+unsigned int irc_send_typing(PurpleConnection *gc, const char *name,
+                             PurpleTypingState state) {
+	struct irc_conn *irc = gc->proto_data;
+	const char *typing_state;
+	char *buf;
+
+	if (!irc->cap_message_tags)
+		return 0;
+
+	if (state == PURPLE_TYPING) {
+		typing_state = "active";
+	} else if (state == PURPLE_TYPED) {
+		typing_state = "paused";
+	} else if (state == PURPLE_NOT_TYPING) {
+		typing_state = "done";
+	} else {
+		return 0;
+	}
+
+	buf = g_strdup_printf("@+typing=%s TAGMSG %s\r\n", typing_state,
+							irc_nick_skip_mode(irc, name));
+	irc_send(irc, buf);
+	g_free(buf);
+
+	return 3;
+}
+
+unsigned int irc_conv_send_typing(PurpleConversation *conv, PurpleTypingState state, gpointer user_data)
+{
+	PurpleConnection *gc = purple_conversation_get_gc(conv);
+
+	if (!PURPLE_CONNECTION_IS_CONNECTED(gc)) {
+		return 0;
+	}
+
+	if (!purple_strequal(purple_plugin_get_id(purple_connection_get_prpl(gc)),
+						"eionrobb-prpl-irc")) {
+		return 0;
+	}
+
+	return irc_send_typing(gc, purple_conversation_get_name(conv), state);
 }
 
 static void irc_get_info(PurpleConnection *gc, const char *who)
@@ -993,7 +1051,7 @@ static PurplePluginProtocolInfo prpl_info =
 	irc_close,		/* close */
 	irc_im_send,		/* send_im */
 	NULL,					/* set_info */
-	NULL,					/* send_typing */
+    irc_send_typing,                  /* send_typing */
 	irc_get_info,		/* get_info */
 	irc_set_status,		/* set_status */
 	NULL,					/* set_idle */
@@ -1079,7 +1137,7 @@ static PurplePluginInfo info =
 	PURPLE_PRIORITY_DEFAULT,                            /**< priority       */
 
 	"prpl-eionrobb-ircv3",                            /**< id             */
-	"IRC",                                            /**< name           */
+    "IRC v3",                                      /**< name           */
 	DISPLAY_VERSION,                                  /**< version        */
 	N_("IRC Protocol Plugin"),                        /**  summary        */
 	N_("The IRC Protocol Plugin that Sucks Less"),    /**  description    */

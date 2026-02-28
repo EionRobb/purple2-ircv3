@@ -100,13 +100,14 @@ static struct _irc_msg {
 	{ "501", "n:", 2, irc_msg_badmode },		/* Unknown mode flag		*/
 	{ "506", "nc:", 3, irc_msg_nosend },		/* Must identify to send	*/
 	{ "515", "nc:", 3, irc_msg_regonly },		/* Registration required	*/
+	{ "cap", "vv:", 3, irc_msg_cap },          /* Capabilities negotiation		*/
+	{ "tagmsg", "t*", 1, irc_msg_tagmsg },     /* Tagged message (IRCv3)	*/
 #ifdef HAVE_CYRUS_SASL
 	{ "903", "*", 0, irc_msg_authok},		/* SASL auth successful		*/
 	{ "904", "*", 0, irc_msg_authtryagain },	/* SASL auth failed, can recover*/
 	{ "905", "*", 0, irc_msg_authfail },		/* SASL auth failed		*/
 	{ "906", "*", 0, irc_msg_authfail },		/* SASL auth failed		*/
 	{ "907", "*", 0, irc_msg_authfail },		/* SASL auth failed		*/
-	{ "cap", "vv:", 3, irc_msg_cap },		/* SASL capable			*/
 	{ "authenticate", ":", 1, irc_msg_authenticate }, /* SASL authenticate		*/
 #endif
 	{ "invite", "n:", 2, irc_msg_invite },		/* Invited			*/

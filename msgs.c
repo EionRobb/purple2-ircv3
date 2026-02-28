@@ -1580,92 +1580,6 @@ irc_auth_start_cyrus(struct irc_conn *irc)
 	g_free(buf);
 }
 
-/* SASL authentication */
-void
-irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **args)
-{
-	int ret = 0;
-	int id = 0;
-	PurpleConnection *gc = purple_account_get_connection(irc->account);
-	const char *mech_list = NULL;
-	char *pos;
-	size_t index;
-
-	if (strncmp(g_strstrip(args[2]), "sasl", 5))
-		return;
-	if (strncmp(args[1], "ACK", 4)) {
-		const char *tmp = _("SASL authentication failed: Server does not support SASL authentication.");
-		purple_connection_error_reason (gc,
-			PURPLE_CONNECTION_ERROR_AUTHENTICATION_IMPOSSIBLE, tmp);
-
-		irc_sasl_finish(irc);
-		return;
-	}
-
-	if (sasl_client_init(NULL) != SASL_OK) {
-		const char *tmp = _("SASL authentication failed: Initializing SASL failed.");
-		purple_connection_error_reason (gc,
-			PURPLE_CONNECTION_ERROR_OTHER_ERROR, tmp);
-		return;
-	}
-
-	irc->sasl_cb = g_new0(sasl_callback_t, 5);
-
-	irc->sasl_cb[id].id = SASL_CB_AUTHNAME;
-	irc->sasl_cb[id].proc = (void *)irc_sasl_cb_simple;
-	irc->sasl_cb[id].context = (void *)irc;
-	id++;
-
-	irc->sasl_cb[id].id = SASL_CB_USER;
-	irc->sasl_cb[id].proc = (void *)irc_sasl_cb_simple;
-	irc->sasl_cb[id].context = (void *)irc;
-	id++;
-
-	irc->sasl_cb[id].id = SASL_CB_PASS;
-	irc->sasl_cb[id].proc = (void *)irc_sasl_cb_secret;
-	irc->sasl_cb[id].context = (void *)irc;
-	id++;
-
-	irc->sasl_cb[id].id = SASL_CB_LOG;
-	irc->sasl_cb[id].proc = (void *)irc_sasl_cb_log;
-	irc->sasl_cb[id].context = (void *)irc;
-	id++;
-
-	irc->sasl_cb[id].id = SASL_CB_LIST_END;
-
-	/* We need to do this to be able to list the mechanisms. */
-	ret = sasl_client_new("irc", irc->server, NULL, NULL, irc->sasl_cb, 0, &irc->sasl_conn);
-
-	sasl_listmech(irc->sasl_conn, NULL, "", " ", "", &mech_list, NULL, NULL);
-	purple_debug_info("irc", "SASL: we have available: %s\n", mech_list);
-
-	if (ret != SASL_OK) {
-		gchar *tmp;
-
-		purple_debug_error("irc", "sasl_client_new failed: %d\n", ret);
-		tmp = g_strdup_printf(_("Failed to initialize SASL authentication: %s"),
-			sasl_errdetail(irc->sasl_conn));
-		purple_connection_error_reason (gc,
-			PURPLE_CONNECTION_ERROR_OTHER_ERROR, tmp);
-		g_free(tmp);
-
-		return;
-	}
-
-	irc->sasl_mechs = g_string_new(mech_list);
-	/* Drop EXTERNAL mechanism since we don't support it */
-	if ((pos = strstr(irc->sasl_mechs->str, "EXTERNAL"))) {
-		index = pos - irc->sasl_mechs->str;
-		g_string_erase(irc->sasl_mechs, index, strlen("EXTERNAL"));
-		/* Remove space which separated this mech from the next */
-		if ((irc->sasl_mechs->str)[index] == ' ') {
-			g_string_erase(irc->sasl_mechs, index, 1);
-		}
-	}
-
-	irc_auth_start_cyrus(irc);
-}
-
 void
 irc_msg_auth(struct irc_conn *irc, char *arg)
 {
@@ -1813,6 +1727,186 @@ irc_sasl_finish(struct irc_conn *irc)
 	g_free(buf);
 }
 #endif
+
+/* IRCv3 capabilities negotiation */
+void irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **args)
+{
+  PurpleConnection *gc = purple_account_get_connection(irc->account);
+  const char *subcmd = args[1];
+  char *caps = g_strstrip(args[2]);
+
+  if (strncmp(subcmd, "LS", 2) == 0) {
+    gchar **cap_array;
+    int i;
+    GString *req = g_string_new("");
+
+    cap_array = g_strsplit(caps, " ", -1);
+    for (i = 0; cap_array[i] != NULL; i++) {
+      if (strcmp(cap_array[i], "message-tags") == 0) {
+        g_string_append(req, "message-tags ");
+      }
+#ifdef HAVE_CYRUS_SASL
+      else if (strcmp(cap_array[i], "sasl") == 0 &&
+               purple_account_get_bool(irc->account, "sasl", FALSE)) {
+        g_string_append(req, "sasl ");
+      }
+#endif
+    }
+    g_strfreev(cap_array);
+
+    if (req->len > 0) {
+      char *buf = irc_format(irc, "vv:", "CAP", "REQ", req->str);
+      irc_priority_send(irc, buf);
+      g_free(buf);
+    } else {
+      char *buf = irc_format(irc, "vv", "CAP", "END");
+      irc_priority_send(irc, buf);
+      g_free(buf);
+    }
+    g_string_free(req, TRUE);
+  } else if (strncmp(subcmd, "ACK", 3) == 0) {
+    gchar **cap_array = g_strsplit(caps, " ", -1);
+    int i;
+    gboolean sasl_acked = FALSE;
+
+    for (i = 0; cap_array[i] != NULL; i++) {
+      if (strcmp(cap_array[i], "message-tags") == 0) {
+        irc->cap_message_tags = TRUE;
+      }
+#ifdef HAVE_CYRUS_SASL
+      else if (strcmp(cap_array[i], "sasl") == 0) {
+        sasl_acked = TRUE;
+      }
+#endif
+    }
+    g_strfreev(cap_array);
+
+#ifdef HAVE_CYRUS_SASL
+    if (sasl_acked) {
+      int ret;
+      const char *mech_list = NULL;
+      char *pos;
+      size_t index;
+      int id = 0;
+
+      if (sasl_client_init(NULL) != SASL_OK) {
+        const char *tmp =
+            _("SASL authentication failed: Initializing SASL failed.");
+        purple_connection_error_reason(gc, PURPLE_CONNECTION_ERROR_OTHER_ERROR,
+                                       tmp);
+        return;
+      }
+
+      irc->sasl_cb = g_new0(sasl_callback_t, 5);
+
+      irc->sasl_cb[id].id = SASL_CB_AUTHNAME;
+      irc->sasl_cb[id].proc = (void *)irc_sasl_cb_simple;
+      irc->sasl_cb[id].context = (void *)irc;
+      id++;
+
+      irc->sasl_cb[id].id = SASL_CB_USER;
+      irc->sasl_cb[id].proc = (void *)irc_sasl_cb_simple;
+      irc->sasl_cb[id].context = (void *)irc;
+      id++;
+
+      irc->sasl_cb[id].id = SASL_CB_PASS;
+      irc->sasl_cb[id].proc = (void *)irc_sasl_cb_secret;
+      irc->sasl_cb[id].context = (void *)irc;
+      id++;
+
+      irc->sasl_cb[id].id = SASL_CB_LOG;
+      irc->sasl_cb[id].proc = (void *)irc_sasl_cb_log;
+      irc->sasl_cb[id].context = (void *)irc;
+      id++;
+
+      irc->sasl_cb[id].id = SASL_CB_LIST_END;
+
+      ret = sasl_client_new("irc", irc->server, NULL, NULL, irc->sasl_cb, 0,
+                            &irc->sasl_conn);
+
+      sasl_listmech(irc->sasl_conn, NULL, "", " ", "", &mech_list, NULL, NULL);
+      purple_debug_info("irc", "SASL: we have available: %s\n", mech_list);
+
+      if (ret != SASL_OK) {
+        gchar *tmp;
+
+        purple_debug_error("irc", "sasl_client_new failed: %d\n", ret);
+        tmp = g_strdup_printf(_("Failed to initialize SASL authentication: %s"),
+                              sasl_errdetail(irc->sasl_conn));
+        purple_connection_error_reason(gc, PURPLE_CONNECTION_ERROR_OTHER_ERROR,
+                                       tmp);
+        g_free(tmp);
+
+        return;
+      }
+
+      irc->sasl_mechs = g_string_new(mech_list);
+      if ((pos = strstr(irc->sasl_mechs->str, "EXTERNAL"))) {
+        index = pos - irc->sasl_mechs->str;
+        g_string_erase(irc->sasl_mechs, index, strlen("EXTERNAL"));
+        if ((irc->sasl_mechs->str)[index] == ' ') {
+          g_string_erase(irc->sasl_mechs, index, 1);
+        }
+      }
+
+      irc_auth_start_cyrus(irc);
+    } else {
+#endif
+      /* If SASL wasn't requested/acked, just end CAP */
+      char *buf = irc_format(irc, "vv", "CAP", "END");
+      irc_priority_send(irc, buf);
+      g_free(buf);
+#ifdef HAVE_CYRUS_SASL
+    }
+#endif
+  }
+}
+
+void irc_msg_tagmsg(struct irc_conn *irc, const char *name, const char *from, char **args) {
+	PurpleConnection *gc = purple_account_get_connection(irc->account);
+	gchar **tags_arr, **kv;
+	int i;
+	char *nick;
+
+	if (!irc->current_tags)
+		return;
+
+	tags_arr = g_strsplit(irc->current_tags, ";", -1);
+	for (i = 0; tags_arr[i] != NULL; i++) {
+		kv = g_strsplit(tags_arr[i], "=", 2);
+		if (kv[0] != NULL && strcmp(kv[0], "+typing") == 0 && kv[1] != NULL) {
+			PurpleTypingState state = PURPLE_NOT_TYPING;
+			if (strcmp(kv[1], "active") == 0)
+				state = PURPLE_TYPING;
+			else if (strcmp(kv[1], "paused") == 0)
+				state = PURPLE_TYPED;
+
+			nick = irc_mask_nick(from);
+			if (args && args[0] && args[0][0] == '#') {
+				// Group chat
+				PurpleConversation *conv = purple_find_conversation_with_account(PURPLE_CONV_TYPE_ANY, args[0], irc->account);
+				if (conv) {
+					PurpleConvChat *chat = purple_conversation_get_chat_data(conv);
+					if (chat) {
+						PurpleConvChatBuddyFlags flags = purple_conv_chat_user_get_flags(chat, nick);
+						if (state == PURPLE_TYPING) {
+							flags |= PURPLE_CBFLAGS_TYPING;
+						} else {
+							flags &= ~PURPLE_CBFLAGS_TYPING;
+						}
+						purple_conv_chat_user_set_flags(chat, nick, flags);
+					}
+				}
+			} else {
+				// Private chat
+				serv_got_typing(gc, nick, state == PURPLE_TYPED ? 30 : 6, state);
+			}
+			g_free(nick);
+		}
+		g_strfreev(kv);
+	}
+	g_strfreev(tags_arr);
+}
 
 void irc_msg_ignore(struct irc_conn *irc, const char *name, const char *from, char **args)
 {
