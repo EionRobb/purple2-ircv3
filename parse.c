@@ -258,6 +258,10 @@ irc_send_convert(struct irc_conn *irc, const char *string)
 	gchar **encodings;
 	const gchar *enclist;
 
+	if (irc->utf8only) {
+		return g_strdup(string);
+	}
+
 	enclist = purple_account_get_string(irc->account, "encoding", IRC_DEFAULT_CHARSET);
 	encodings = g_strsplit(enclist, ",", 2);
 
@@ -286,6 +290,13 @@ irc_recv_convert(struct irc_conn *irc, const char *string)
 	gchar **encodings;
 	gboolean autodetect;
 	int i;
+
+	if (irc->utf8only) {
+		if (g_utf8_validate(string, -1, NULL))
+			return g_strdup(string);
+		else
+			return purple_utf8_salvage(string);
+	}
 
 	autodetect = purple_account_get_bool(irc->account, "autodetect_utf8", IRC_DEFAULT_AUTODETECT);
 

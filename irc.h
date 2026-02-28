@@ -150,6 +150,7 @@ struct irc_conn {
 	gboolean cap_labeled_response;
 	GHashTable *sent_messages;
 	guint next_msg_id;
+	gboolean utf8only;
 
 #ifdef HAVE_CYRUS_SASL
 	sasl_conn_t *sasl_conn;

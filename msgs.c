@@ -219,6 +219,8 @@ irc_msg_features(struct irc_conn *irc, const char *name, const char *from, char 
 		if (!strncmp(features[i], "PREFIX=", 7)) {
 			if ((val = strchr(features[i] + 7, ')')) != NULL)
 				irc->mode_chars = g_strdup(val + 1);
+		} else if (strcmp(features[i], "UTF8ONLY") == 0) {
+			irc->utf8only = TRUE;
 		}
 	}
 
