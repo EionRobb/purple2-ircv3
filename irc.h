@@ -145,6 +145,9 @@ struct irc_conn {
 
 	gchar *current_tags;
 	gboolean cap_message_tags;
+	gboolean cap_labeled_response;
+	GHashTable *sent_messages;
+	guint next_msg_id;
 
 #ifdef HAVE_CYRUS_SASL
 	sasl_conn_t *sasl_conn;

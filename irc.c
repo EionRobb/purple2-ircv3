@@ -402,6 +402,7 @@ static void irc_login(PurpleAccount *account)
 	irc_cmd_table_build(irc);
 	irc->msgs = g_hash_table_new(g_str_hash, g_str_equal);
 	irc_msg_table_build(irc);
+	irc->sent_messages = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
 
 	purple_connection_update_progress(gc, _("Connecting"), 1, 2);
 
@@ -596,6 +597,7 @@ static void irc_close(PurpleConnection *gc)
 	g_hash_table_destroy(irc->cmds);
 	g_hash_table_destroy(irc->msgs);
 	g_hash_table_destroy(irc->buddies);
+	g_hash_table_destroy(irc->sent_messages);
 	if (irc->motd)
 		g_string_free(irc->motd, TRUE);
 	g_free(irc->server);

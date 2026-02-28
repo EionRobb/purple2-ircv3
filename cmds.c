@@ -447,6 +447,15 @@ int irc_cmd_privmsg(struct irc_conn *irc, const char *cmd, const char *target, c
 		else
 			buf = irc_format(irc, "vt:", "PRIVMSG", args[0], msg);
 
+		if (irc->cap_labeled_response) {
+			gchar *temp;
+			gchar *label = g_strdup_printf("msg-%u", irc->next_msg_id++);
+			g_hash_table_insert(irc->sent_messages, label, NULL);
+			temp = g_strdup_printf("@label=%s %s", label, buf);
+			g_free(buf);
+			buf = temp;
+		}
+
 		irc_send(irc, buf);
 		g_free(msg);
 		g_free(buf);

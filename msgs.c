@@ -1334,12 +1334,31 @@ static void irc_msg_handle_privmsg(struct irc_conn *irc, const char *name, const
 		msg = tmp;
 	}
 
+	time_t now = time(NULL);
+	gboolean self_sent = FALSE;
+	if (irc->current_tags) {
+		// look for @label in current_tags string, check irc->sent_messages to see if we sent it, and skip if we did
+		gchar **tags = g_strsplit(irc->current_tags, ";", -1);
+		int i;
+		for (i = 0; tags[i] != NULL; i++) {
+			if (g_str_has_prefix(tags[i], "label=")) {
+				if (g_hash_table_remove(irc->sent_messages, tags[i] + 6)) { // Skip "label="
+					self_sent = TRUE;
+				}
+			} else if (g_str_has_prefix(tags[i], "time=")) {
+				const gchar *time_str = tags[i] + 5; // Skip "time="
+				now = purple_str_to_time(time_str, TRUE, NULL, NULL, NULL);
+			}
+		}
+		g_strfreev(tags);
+	}
+
 	if (!purple_utf8_strcasecmp(to, purple_connection_get_display_name(gc))) {
-		serv_got_im(gc, nick, msg, 0, time(NULL));
-	} else {
+		serv_got_im(gc, nick, msg, 0, now);
+	} else if (!self_sent) {
 		convo = purple_find_conversation_with_account(PURPLE_CONV_TYPE_CHAT, irc_nick_skip_mode(irc, to), irc->account);
 		if (convo) {
-			serv_got_chat_in(gc, purple_conv_chat_get_id(PURPLE_CONV_CHAT(convo)), nick, 0, msg, time(NULL));
+			serv_got_chat_in(gc, purple_conv_chat_get_id(PURPLE_CONV_CHAT(convo)), nick, 0, msg, now);
 		} else {
 			purple_debug_error("irc", "Got a %s on %s, which does not exist\n",
 			                   notice ? "NOTICE" : "PRIVMSG", to);
@@ -1745,6 +1764,12 @@ void irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char 
 		for (i = 0; cap_array[i] != NULL; i++) {
 		if (strcmp(cap_array[i], "message-tags") == 0) {
 			g_string_append(req, "message-tags ");
+		} else if (strcmp(cap_array[i], "echo-message") == 0) {
+			g_string_append(req, "echo-message ");
+		} else if (strcmp(cap_array[i], "labeled-response") == 0) {
+			g_string_append(req, "labeled-response ");
+		} else if (strcmp(cap_array[i], "server-time") == 0) {
+			g_string_append(req, "server-time ");
 		}
 	#ifdef HAVE_CYRUS_SASL
 		else if ((strcmp(cap_array[i], "sasl") == 0 || strncmp(cap_array[i], "sasl=", 5) == 0) &&
@@ -1771,6 +1796,8 @@ void irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char 
 		for (i = 0; cap_array[i] != NULL; i++) {
 			if (strcmp(cap_array[i], "message-tags") == 0) {
 				irc->cap_message_tags = FALSE;
+			} else if (strcmp(cap_array[i], "labeled-response") == 0) {
+				irc->cap_labeled_response = FALSE;
 			}
 		}
 		g_strfreev(cap_array);
@@ -1780,6 +1807,8 @@ void irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char 
 		for (i = 0; cap_array[i] != NULL; i++) {
 			if (strcmp(cap_array[i], "message-tags") == 0) {
 				irc->cap_message_tags = TRUE;
+			} else if (strcmp(cap_array[i], "labeled-response") == 0) {
+				irc->cap_labeled_response = TRUE;
 			}
 		}
 		g_strfreev(cap_array);
@@ -1791,6 +1820,8 @@ void irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char 
 		for (i = 0; cap_array[i] != NULL; i++) {
 			if (strcmp(cap_array[i], "message-tags") == 0) {
 				irc->cap_message_tags = TRUE;
+			} else if (strcmp(cap_array[i], "labeled-response") == 0) {
+				irc->cap_labeled_response = TRUE;
 			}
 #ifdef HAVE_CYRUS_SASL
 			else if (strcmp(cap_array[i], "sasl") == 0) {
