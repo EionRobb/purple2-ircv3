@@ -704,6 +704,24 @@ void irc_parse_msg(struct irc_conn *irc, char *input)
 #endif
 	}
 
+	g_free(irc->current_tags);
+	irc->current_tags = NULL;
+
+	if (input[0] == '@') {
+		cur = strchr(input, ' ');
+		if (cur == NULL) {
+			irc_parse_error_cb(irc, input);
+			return;
+		}
+
+		irc->current_tags = g_strndup(&input[1], cur - &input[1]);
+
+		/* Skip past the space to the actual message */
+		while (*cur == ' ')
+			cur++;
+		input = cur;
+	}
+
 	if (input[0] != ':' || (cur = strchr(input, ' ')) == NULL) {
 		irc_parse_error_cb(irc, input);
 		return;

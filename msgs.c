@@ -1746,7 +1746,7 @@ void irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char 
         g_string_append(req, "message-tags ");
       }
 #ifdef HAVE_CYRUS_SASL
-      else if (strcmp(cap_array[i], "sasl") == 0 &&
+      else if ((strcmp(cap_array[i], "sasl") == 0 || strncmp(cap_array[i], "sasl=", 5) == 0) &&
                purple_account_get_bool(irc->account, "sasl", FALSE)) {
         g_string_append(req, "sasl ");
       }
