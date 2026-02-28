@@ -35,21 +35,27 @@
 #include <sasl/sasl.h>
 #endif
 
-static char *irc_mask_nick(const char *mask);
-static char *irc_mask_userhost(const char *mask);
-static void irc_chat_remove_buddy(PurpleConversation *convo, char *data[2]);
-static void irc_buddy_status(char *name, struct irc_buddy *ib, struct irc_conn *irc);
-static void irc_connected(struct irc_conn *irc, const char *nick);
+static char *
+irc_mask_nick(const char *mask);
+static char *
+irc_mask_userhost(const char *mask);
+static void
+irc_chat_remove_buddy(PurpleConversation *convo, char *data[2]);
+static void
+irc_buddy_status(char *name, struct irc_buddy *ib, struct irc_conn *irc);
+static void
+irc_connected(struct irc_conn *irc, const char *nick);
 
-static void irc_msg_handle_privmsg(struct irc_conn *irc, const char *name,
-                                   const char *from, const char *to,
-                                   const char *rawmsg, gboolean notice);
+static void
+irc_msg_handle_privmsg(struct irc_conn *irc, const char *name, const char *from, const char *to, const char *rawmsg, gboolean notice);
 
 #ifdef HAVE_CYRUS_SASL
-static void irc_sasl_finish(struct irc_conn *irc);
+static void
+irc_sasl_finish(struct irc_conn *irc);
 #endif
 
-static char *irc_mask_nick(const char *mask)
+static char *
+irc_mask_nick(const char *mask)
 {
 	char *end, *buf;
 
@@ -62,19 +68,21 @@ static char *irc_mask_nick(const char *mask)
 	return buf;
 }
 
-static char *irc_mask_userhost(const char *mask)
+static char *
+irc_mask_userhost(const char *mask)
 {
 	char *sep = strchr(mask, '!');
 	char *host = "";
 
-	if(sep) {
+	if (sep) {
 		host = sep + 1;
 	}
 
 	return g_strdup(host);
 }
 
-static void irc_chat_remove_buddy(PurpleConversation *convo, char *data[2])
+static void
+irc_chat_remove_buddy(PurpleConversation *convo, char *data[2])
 {
 	char *message, *stripped;
 
@@ -88,15 +96,15 @@ static void irc_chat_remove_buddy(PurpleConversation *convo, char *data[2])
 	g_free(message);
 }
 
-static void irc_connected(struct irc_conn *irc, const char *nick)
+static void
+irc_connected(struct irc_conn *irc, const char *nick)
 {
 	PurpleConnection *gc;
 	PurpleStatus *status;
 	GSList *buddies;
 	PurpleAccount *account;
 
-	if ((gc = purple_account_get_connection(irc->account)) == NULL
-	    || PURPLE_CONNECTION_IS_CONNECTED(gc))
+	if ((gc = purple_account_get_connection(irc->account)) == NULL || PURPLE_CONNECTION_IS_CONNECTED(gc))
 		return;
 
 	purple_connection_set_display_name(gc, nick);
@@ -112,8 +120,7 @@ static void irc_connected(struct irc_conn *irc, const char *nick)
 
 	/* this used to be in the core, but it's not now */
 	for (buddies = purple_find_buddies(account, NULL); buddies;
-			buddies = g_slist_delete_link(buddies, buddies))
-	{
+		 buddies = g_slist_delete_link(buddies, buddies)) {
 		PurpleBuddy *b = buddies->data;
 		struct irc_buddy *ib = g_new0(struct irc_buddy, 1);
 		ib->name = g_strdup(purple_buddy_get_name(b));
@@ -123,11 +130,12 @@ static void irc_connected(struct irc_conn *irc, const char *nick)
 
 	irc_blist_timeout(irc);
 	if (!irc->timer)
-		irc->timer = purple_timeout_add_seconds(45, (GSourceFunc)irc_blist_timeout, (gpointer)irc);
+		irc->timer = purple_timeout_add_seconds(45, (GSourceFunc) irc_blist_timeout, (gpointer) irc);
 }
 
 /* This function is ugly, but it's really an error handler. */
-void irc_msg_default(struct irc_conn *irc, const char *name, const char *from, char **args)
+void
+irc_msg_default(struct irc_conn *irc, const char *name, const char *from, char **args)
 {
 	int i;
 	const char *end, *cur, *numeric = NULL;
@@ -141,10 +149,7 @@ void irc_msg_default(struct irc_conn *irc, const char *name, const char *from, c
 		}
 		/* Check for 3-digit numeric in second position */
 		if (i == 1) {
-			if (end - cur != 3
-			    || !g_ascii_isdigit(cur[0]) 
-				|| !g_ascii_isdigit(cur[1])
-			    || !g_ascii_isdigit(cur[2])) {
+			if (end - cur != 3 || !g_ascii_isdigit(cur[0]) || !g_ascii_isdigit(cur[1]) || !g_ascii_isdigit(cur[2])) {
 				goto undirected;
 			}
 			/* Save the numeric for printing to the channel */
@@ -169,8 +174,8 @@ void irc_msg_default(struct irc_conn *irc, const char *name, const char *from, c
 
 	/* Check for an existing conversation */
 	convo = purple_find_conversation_with_account(PURPLE_CONV_TYPE_ANY,
-						      convname,
-						      irc->account);
+												  convname,
+												  irc->account);
 	g_free(convname);
 
 	if (convo == NULL) {
@@ -191,21 +196,19 @@ void irc_msg_default(struct irc_conn *irc, const char *name, const char *from, c
 	clean = purple_utf8_salvage(end);
 	tmp = g_strdup_printf("%.3s: %s", numeric, clean);
 	g_free(clean);
-	purple_conversation_write(convo, "", tmp,
-				  PURPLE_MESSAGE_SYSTEM|PURPLE_MESSAGE_NO_LOG
-				  |PURPLE_MESSAGE_RAW|PURPLE_MESSAGE_NO_LINKIFY,
-				  time(NULL));
+	purple_conversation_write(convo, "", tmp, PURPLE_MESSAGE_SYSTEM | PURPLE_MESSAGE_NO_LOG | PURPLE_MESSAGE_RAW | PURPLE_MESSAGE_NO_LINKIFY, time(NULL));
 	g_free(tmp);
 	return;
 
-  undirected:
+undirected:
 	/* This, too, should be escaped somehow (smarter) */
 	clean = purple_utf8_salvage(args[0]);
 	purple_debug(PURPLE_DEBUG_INFO, "irc", "Unrecognized message: %s\n", clean);
 	g_free(clean);
 }
 
-void irc_msg_features(struct irc_conn *irc, const char *name, const char *from, char **args)
+void
+irc_msg_features(struct irc_conn *irc, const char *name, const char *from, char **args)
 {
 	gchar **features;
 	int i;
@@ -222,7 +225,8 @@ void irc_msg_features(struct irc_conn *irc, const char *name, const char *from, 
 	g_strfreev(features);
 }
 
-void irc_msg_luser(struct irc_conn *irc, const char *name, const char *from, char **args)
+void
+irc_msg_luser(struct irc_conn *irc, const char *name, const char *from, char **args)
 {
 	if (purple_strequal(name, "251")) {
 		/* 251 is required, so we pluck our nick from here and
@@ -230,11 +234,12 @@ void irc_msg_luser(struct irc_conn *irc, const char *name, const char *from, cha
 		irc_connected(irc, args[0]);
 		/* Some IRC servers seem to not send a 255 numeric, so
 		 * I guess we can't require it; 251 will do. */
-	/* } else if (purple_strequal(name, "255")) { */
+		/* } else if (purple_strequal(name, "255")) { */
 	}
 }
 
-void irc_msg_away(struct irc_conn *irc, const char *name, const char *from, char **args)
+void
+irc_msg_away(struct irc_conn *irc, const char *name, const char *from, char **args)
 {
 	PurpleConnection *gc;
 	char *msg;
@@ -253,7 +258,8 @@ void irc_msg_away(struct irc_conn *irc, const char *name, const char *from, char
 	}
 }
 
-void irc_msg_badmode(struct irc_conn *irc, const char *name, const char *from, char **args)
+void
+irc_msg_badmode(struct irc_conn *irc, const char *name, const char *from, char **args)
 {
 	PurpleConnection *gc = purple_account_get_connection(irc->account);
 
@@ -262,12 +268,14 @@ void irc_msg_badmode(struct irc_conn *irc, const char *name, const char *from, c
 	purple_notify_error(gc, NULL, _("Bad mode"), args[1]);
 }
 
-void irc_msg_ban(struct irc_conn *irc, const char *name, const char *from, char **args)
+void
+irc_msg_ban(struct irc_conn *irc, const char *name, const char *from, char **args)
 {
 	PurpleConversation *convo;
 
 	convo = purple_find_conversation_with_account(PURPLE_CONV_TYPE_CHAT,
-						      args[1], irc->account);
+												  args[1],
+												  irc->account);
 
 	if (purple_strequal(name, "367")) {
 		char *msg = NULL;
@@ -278,15 +286,15 @@ void irc_msg_ban(struct irc_conn *irc, const char *name, const char *from, char 
 			time_t t2 = time(NULL);
 			char *time = purple_str_seconds_to_string(t2 - t1);
 			msg = g_strdup_printf(_("Ban on %s by %s, set %s ago"),
-			                      args[2], args[3], time);
+								  args[2],
+								  args[3],
+								  time);
 			g_free(time);
 		} else {
 			msg = g_strdup_printf(_("Ban on %s"), args[2]);
 		}
 		if (convo) {
-			purple_conv_chat_write(PURPLE_CONV_CHAT(convo), "", msg,
-			                       PURPLE_MESSAGE_SYSTEM|PURPLE_MESSAGE_NO_LOG,
-			                       time(NULL));
+			purple_conv_chat_write(PURPLE_CONV_CHAT(convo), "", msg, PURPLE_MESSAGE_SYSTEM | PURPLE_MESSAGE_NO_LOG, time(NULL));
 		} else {
 			purple_debug_info("irc", "%s\n", msg);
 		}
@@ -295,14 +303,12 @@ void irc_msg_ban(struct irc_conn *irc, const char *name, const char *from, char 
 		if (!convo)
 			return;
 		/* End of ban list */
-		purple_conv_chat_write(PURPLE_CONV_CHAT(convo), "",
-		                       _("End of ban list"),
-		                       PURPLE_MESSAGE_SYSTEM|PURPLE_MESSAGE_NO_LOG,
-		                       time(NULL));
+		purple_conv_chat_write(PURPLE_CONV_CHAT(convo), "", _("End of ban list"), PURPLE_MESSAGE_SYSTEM | PURPLE_MESSAGE_NO_LOG, time(NULL));
 	}
 }
 
-void irc_msg_banned(struct irc_conn *irc, const char *name, const char *from, char **args)
+void
+irc_msg_banned(struct irc_conn *irc, const char *name, const char *from, char **args)
 {
 	PurpleConnection *gc = purple_account_get_connection(irc->account);
 	char *buf;
@@ -314,7 +320,8 @@ void irc_msg_banned(struct irc_conn *irc, const char *name, const char *from, ch
 	g_free(buf);
 }
 
-void irc_msg_banfull(struct irc_conn *irc, const char *name, const char *from, char **args)
+void
+irc_msg_banfull(struct irc_conn *irc, const char *name, const char *from, char **args)
 {
 	PurpleConversation *convo;
 	char *buf, *nick;
@@ -326,19 +333,18 @@ void irc_msg_banfull(struct irc_conn *irc, const char *name, const char *from, c
 	nick = g_markup_escape_text(args[2], -1);
 	buf = g_strdup_printf(_("Cannot ban %s: banlist is full"), nick);
 	g_free(nick);
-	purple_conv_chat_write(PURPLE_CONV_CHAT(convo), "", buf,
-			     PURPLE_MESSAGE_SYSTEM|PURPLE_MESSAGE_NO_LOG,
-			     time(NULL));
+	purple_conv_chat_write(PURPLE_CONV_CHAT(convo), "", buf, PURPLE_MESSAGE_SYSTEM | PURPLE_MESSAGE_NO_LOG, time(NULL));
 	g_free(buf);
 }
 
-void irc_msg_chanmode(struct irc_conn *irc, const char *name, const char *from, char **args)
+void
+irc_msg_chanmode(struct irc_conn *irc, const char *name, const char *from, char **args)
 {
 	PurpleConversation *convo;
 	char *buf, *escaped;
 
 	convo = purple_find_conversation_with_account(PURPLE_CONV_TYPE_CHAT, args[1], irc->account);
-	if (!convo)	/* XXX punt on channels we are not in for now */
+	if (!convo) /* XXX punt on channels we are not in for now */
 		return;
 
 	escaped = (args[3] != NULL) ? g_markup_escape_text(args[3], -1) : NULL;
@@ -350,17 +356,16 @@ void irc_msg_chanmode(struct irc_conn *irc, const char *name, const char *from, 
 	return;
 }
 
-void irc_msg_whois(struct irc_conn *irc, const char *name, const char *from, char **args)
+void
+irc_msg_whois(struct irc_conn *irc, const char *name, const char *from, char **args)
 {
 	if (!irc->whois.nick) {
-		purple_debug(PURPLE_DEBUG_WARNING, "irc", "Unexpected %s reply for %s\n", purple_strequal(name, "314") ? "WHOWAS" : "WHOIS"
-											   , args[1]);
+		purple_debug(PURPLE_DEBUG_WARNING, "irc", "Unexpected %s reply for %s\n", purple_strequal(name, "314") ? "WHOWAS" : "WHOIS", args[1]);
 		return;
 	}
 
 	if (purple_utf8_strcasecmp(irc->whois.nick, args[1])) {
-		purple_debug(PURPLE_DEBUG_WARNING, "irc", "Got %s reply for %s while waiting for %s\n", purple_strequal(name, "314") ? "WHOWAS" : "WHOIS"
-												      , args[1], irc->whois.nick);
+		purple_debug(PURPLE_DEBUG_WARNING, "irc", "Got %s reply for %s while waiting for %s\n", purple_strequal(name, "314") ? "WHOWAS" : "WHOIS", args[1], irc->whois.nick);
 		return;
 	}
 
@@ -378,7 +383,7 @@ void irc_msg_whois(struct irc_conn *irc, const char *name, const char *from, cha
 	} else if (purple_strequal(name, "317")) {
 		irc->whois.idle = atoi(args[2]);
 		if (args[3])
-			irc->whois.signon = (time_t)atoi(args[3]);
+			irc->whois.signon = (time_t) atoi(args[3]);
 	} else if (purple_strequal(name, "319")) {
 		if (irc->whois.channels == NULL) {
 			irc->whois.channels = g_string_new(args[2]);
@@ -388,36 +393,32 @@ void irc_msg_whois(struct irc_conn *irc, const char *name, const char *from, cha
 	} else if (purple_strequal(name, "320")) {
 		irc->whois.identified = 1;
 	} else if (purple_strequal(name, "330")) {
-		purple_debug(PURPLE_DEBUG_INFO, "irc", "330 %s: 1=[%s] 2=[%s] 3=[%s]",
-				name, args[1], args[2], args[3]);
+		purple_debug(PURPLE_DEBUG_INFO, "irc", "330 %s: 1=[%s] 2=[%s] 3=[%s]", name, args[1], args[2], args[3]);
 		if (purple_strequal(args[3], "is logged in as"))
 			irc->whois.login = g_strdup(args[2]);
 	}
 }
 
-void irc_msg_endwhois(struct irc_conn *irc, const char *name, const char *from, char **args)
+void
+irc_msg_endwhois(struct irc_conn *irc, const char *name, const char *from, char **args)
 {
 	PurpleConnection *gc;
 	char *tmp, *tmp2;
 	PurpleNotifyUserInfo *user_info;
 
 	if (!irc->whois.nick) {
-		purple_debug(PURPLE_DEBUG_WARNING, "irc", "Unexpected End of %s for %s\n", purple_strequal(name, "369") ? "WHOWAS" : "WHOIS"
-											     , args[1]);
+		purple_debug(PURPLE_DEBUG_WARNING, "irc", "Unexpected End of %s for %s\n", purple_strequal(name, "369") ? "WHOWAS" : "WHOIS", args[1]);
 		return;
 	}
 	if (purple_utf8_strcasecmp(irc->whois.nick, args[1])) {
-		purple_debug(PURPLE_DEBUG_WARNING, "irc", "Received end of %s for %s, expecting %s\n", purple_strequal(name, "369") ? "WHOWAS" : "WHOIS"
-													 , args[1], irc->whois.nick);
+		purple_debug(PURPLE_DEBUG_WARNING, "irc", "Received end of %s for %s, expecting %s\n", purple_strequal(name, "369") ? "WHOWAS" : "WHOIS", args[1], irc->whois.nick);
 		return;
 	}
 
 	user_info = purple_notify_user_info_new();
 
 	tmp2 = g_markup_escape_text(args[1], -1);
-	tmp = g_strdup_printf("%s%s%s", tmp2,
-				(irc->whois.ircop ? _(" <i>(ircop)</i>") : ""),
-				(irc->whois.identified ? _(" <i>(identified)</i>") : ""));
+	tmp = g_strdup_printf("%s%s%s", tmp2, (irc->whois.ircop ? _(" <i>(ircop)</i>") : ""), (irc->whois.identified ? _(" <i>(identified)</i>") : ""));
 	purple_notify_user_info_add_pair(user_info, _("Nick"), tmp);
 	g_free(tmp2);
 	g_free(tmp);
@@ -460,11 +461,13 @@ void irc_msg_endwhois(struct irc_conn *irc, const char *name, const char *from, 
 		purple_notify_user_info_add_pair(user_info, _("Idle for"), timex);
 		g_free(timex);
 		purple_notify_user_info_add_pair(user_info,
-														_("Online since"), purple_date_format_full(localtime(&irc->whois.signon)));
+										 _("Online since"),
+										 purple_date_format_full(localtime(&irc->whois.signon)));
 	}
 	if (purple_strequal(irc->whois.nick, "Paco-Paco")) {
 		purple_notify_user_info_add_pair(user_info,
-																   _("<b>Defining adjective:</b>"), _("Glorious"));
+										 _("<b>Defining adjective:</b>"),
+										 _("Glorious"));
 	}
 
 	gc = purple_account_get_connection(irc->account);
@@ -476,7 +479,8 @@ void irc_msg_endwhois(struct irc_conn *irc, const char *name, const char *from, 
 	memset(&irc->whois, 0, sizeof(irc->whois));
 }
 
-void irc_msg_who(struct irc_conn *irc, const char *name, const char *from, char **args)
+void
+irc_msg_who(struct irc_conn *irc, const char *name, const char *from, char **args)
 {
 	if (purple_strequal(name, "352")) {
 		PurpleConversation *conv;
@@ -490,7 +494,7 @@ void irc_msg_who(struct irc_conn *irc, const char *name, const char *from, char 
 
 		conv = purple_find_conversation_with_account(PURPLE_CONV_TYPE_CHAT, args[1], irc->account);
 		if (!conv) {
-			purple_debug(PURPLE_DEBUG_ERROR, "irc","Got a WHO response for %s, which doesn't exist\n", args[1]);
+			purple_debug(PURPLE_DEBUG_ERROR, "irc", "Got a WHO response for %s, which doesn't exist\n", args[1]);
 			return;
 		}
 
@@ -536,13 +540,14 @@ void irc_msg_who(struct irc_conn *irc, const char *name, const char *from, char 
 		 * Comments? */
 		if (args[6][0] == 'G' && !(flags & PURPLE_CBFLAGS_AWAY)) {
 			purple_conv_chat_user_set_flags(chat, cb->name, flags | PURPLE_CBFLAGS_AWAY);
-		} else if(args[6][0] == 'H' && (flags & PURPLE_CBFLAGS_AWAY)) {
+		} else if (args[6][0] == 'H' && (flags & PURPLE_CBFLAGS_AWAY)) {
 			purple_conv_chat_user_set_flags(chat, cb->name, flags & ~PURPLE_CBFLAGS_AWAY);
 		}
 	}
 }
 
-void irc_msg_list(struct irc_conn *irc, const char *name, const char *from, char **args)
+void
+irc_msg_list(struct irc_conn *irc, const char *name, const char *from, char **args)
 {
 	if (!irc->roomlist)
 		return;
@@ -578,17 +583,18 @@ void irc_msg_list(struct irc_conn *irc, const char *name, const char *from, char
 	}
 }
 
-void irc_msg_topic(struct irc_conn *irc, const char *name, const char *from, char **args)
+void
+irc_msg_topic(struct irc_conn *irc, const char *name, const char *from, char **args)
 {
 	char *chan, *topic, *msg, *nick, *tmp, *tmp2;
 	PurpleConversation *convo;
 
 	if (purple_strequal(name, "topic")) {
 		chan = args[0];
-		topic = irc_mirc2txt (args[1]);
+		topic = irc_mirc2txt(args[1]);
 	} else {
 		chan = args[1];
-		topic = irc_mirc2txt (args[2]);
+		topic = irc_mirc2txt(args[2]);
 	}
 
 	convo = purple_find_conversation_with_account(PURPLE_CONV_TYPE_CHAT, chan, irc->account);
@@ -604,8 +610,7 @@ void irc_msg_topic(struct irc_conn *irc, const char *name, const char *from, cha
 	g_free(tmp);
 	if (purple_strequal(name, "topic")) {
 		const char *current_topic = purple_conv_chat_get_topic(PURPLE_CONV_CHAT(convo));
-		if (!(current_topic != NULL && purple_strequal(tmp2, current_topic)))
-		{
+		if (!(current_topic != NULL && purple_strequal(tmp2, current_topic))) {
 			char *nick_esc;
 			nick = irc_mask_nick(from);
 			nick_esc = g_markup_escape_text(nick, -1);
@@ -631,7 +636,8 @@ void irc_msg_topic(struct irc_conn *irc, const char *name, const char *from, cha
 	g_free(topic);
 }
 
-void irc_msg_topicinfo(struct irc_conn *irc, const char *name, const char *from, char **args)
+void
+irc_msg_topicinfo(struct irc_conn *irc, const char *name, const char *from, char **args)
 {
 	PurpleConversation *convo;
 	struct tm *tm;
@@ -644,7 +650,7 @@ void irc_msg_topicinfo(struct irc_conn *irc, const char *name, const char *from,
 		return;
 	}
 
-	t = (time_t)atol(args[3]);
+	t = (time_t) atol(args[3]);
 	if (t == 0) {
 		purple_debug(PURPLE_DEBUG_ERROR, "irc", "Got apparently nonsensical topic timestamp %s\n", args[3]);
 		return;
@@ -660,7 +666,8 @@ void irc_msg_topicinfo(struct irc_conn *irc, const char *name, const char *from,
 	g_free(msg);
 }
 
-void irc_msg_unknown(struct irc_conn *irc, const char *name, const char *from, char **args)
+void
+irc_msg_unknown(struct irc_conn *irc, const char *name, const char *from, char **args)
 {
 	PurpleConnection *gc = purple_account_get_connection(irc->account);
 	char *buf;
@@ -672,7 +679,8 @@ void irc_msg_unknown(struct irc_conn *irc, const char *name, const char *from, c
 	g_free(buf);
 }
 
-void irc_msg_names(struct irc_conn *irc, const char *name, const char *from, char **args)
+void
+irc_msg_names(struct irc_conn *irc, const char *name, const char *from, char **args)
 {
 	char *names, *cur, *end, *tmp, *msg;
 	PurpleConversation *convo;
@@ -691,9 +699,9 @@ void irc_msg_names(struct irc_conn *irc, const char *name, const char *from, cha
 		if (purple_conversation_get_data(convo, IRC_NAMES_FLAG)) {
 			msg = g_strdup_printf(_("Users on %s: %s"), args[1], names ? names : "");
 			if (purple_conversation_get_type(convo) == PURPLE_CONV_TYPE_CHAT)
-				purple_conv_chat_write(PURPLE_CONV_CHAT(convo), "", msg, PURPLE_MESSAGE_SYSTEM|PURPLE_MESSAGE_NO_LOG, time(NULL));
+				purple_conv_chat_write(PURPLE_CONV_CHAT(convo), "", msg, PURPLE_MESSAGE_SYSTEM | PURPLE_MESSAGE_NO_LOG, time(NULL));
 			else
-				purple_conv_im_write(PURPLE_CONV_IM(convo), "", msg, PURPLE_MESSAGE_SYSTEM|PURPLE_MESSAGE_NO_LOG, time(NULL));
+				purple_conv_im_write(PURPLE_CONV_IM(convo), "", msg, PURPLE_MESSAGE_SYSTEM | PURPLE_MESSAGE_NO_LOG, time(NULL));
 			g_free(msg);
 		} else if (cur != NULL) {
 			GList *users = NULL;
@@ -710,11 +718,10 @@ void irc_msg_names(struct irc_conn *irc, const char *name, const char *from, cha
 				} else if (*cur == '%') {
 					f = PURPLE_CBFLAGS_HALFOP;
 					cur++;
-				} else if(*cur == '+') {
+				} else if (*cur == '+') {
 					f = PURPLE_CBFLAGS_VOICE;
 					cur++;
-				} else if(irc->mode_chars
-					  && strchr(irc->mode_chars, *cur)) {
+				} else if (irc->mode_chars && strchr(irc->mode_chars, *cur)) {
 					if (*cur == '~')
 						f = PURPLE_CBFLAGS_FOUNDER;
 					cur++;
@@ -739,8 +746,7 @@ void irc_msg_names(struct irc_conn *irc, const char *name, const char *from, cha
 				g_list_free(flags);
 			}
 
-			purple_conversation_set_data(convo, IRC_NAMES_FLAG,
-						   GINT_TO_POINTER(TRUE));
+			purple_conversation_set_data(convo, IRC_NAMES_FLAG, GINT_TO_POINTER(TRUE));
 		}
 		g_free(names);
 	} else {
@@ -753,7 +759,8 @@ void irc_msg_names(struct irc_conn *irc, const char *name, const char *from, cha
 	}
 }
 
-void irc_msg_motd(struct irc_conn *irc, const char *name, const char *from, char **args)
+void
+irc_msg_motd(struct irc_conn *irc, const char *name, const char *from, char **args)
 {
 	char *escaped;
 
@@ -795,18 +802,18 @@ void irc_msg_motd(struct irc_conn *irc, const char *name, const char *from, char
 	g_free(escaped);
 }
 
-void irc_msg_time(struct irc_conn *irc, const char *name, const char *from, char **args)
+void
+irc_msg_time(struct irc_conn *irc, const char *name, const char *from, char **args)
 {
 	PurpleConnection *gc = purple_account_get_connection(irc->account);
 
 	g_return_if_fail(gc);
 
-	purple_notify_message(gc, PURPLE_NOTIFY_MSG_INFO, _("Time Response"),
-			    _("The IRC server's local time is:"),
-			    args[2], NULL, NULL);
+	purple_notify_message(gc, PURPLE_NOTIFY_MSG_INFO, _("Time Response"), _("The IRC server's local time is:"), args[2], NULL, NULL);
 }
 
-void irc_msg_nochan(struct irc_conn *irc, const char *name, const char *from, char **args)
+void
+irc_msg_nochan(struct irc_conn *irc, const char *name, const char *from, char **args)
 {
 	PurpleConnection *gc = purple_account_get_connection(irc->account);
 
@@ -815,7 +822,8 @@ void irc_msg_nochan(struct irc_conn *irc, const char *name, const char *from, ch
 	purple_notify_error(gc, NULL, _("No such channel"), args[1]);
 }
 
-void irc_msg_nonick(struct irc_conn *irc, const char *name, const char *from, char **args)
+void
+irc_msg_nonick(struct irc_conn *irc, const char *name, const char *from, char **args)
 {
 	PurpleConnection *gc;
 	PurpleConversation *convo;
@@ -823,11 +831,9 @@ void irc_msg_nonick(struct irc_conn *irc, const char *name, const char *from, ch
 	convo = purple_find_conversation_with_account(PURPLE_CONV_TYPE_ANY, args[1], irc->account);
 	if (convo) {
 		if (purple_conversation_get_type(convo) == PURPLE_CONV_TYPE_CHAT) /* does this happen? */
-			purple_conv_chat_write(PURPLE_CONV_CHAT(convo), args[1], _("no such channel"),
-					PURPLE_MESSAGE_SYSTEM|PURPLE_MESSAGE_NO_LOG, time(NULL));
+			purple_conv_chat_write(PURPLE_CONV_CHAT(convo), args[1], _("no such channel"), PURPLE_MESSAGE_SYSTEM | PURPLE_MESSAGE_NO_LOG, time(NULL));
 		else
-			purple_conv_im_write(PURPLE_CONV_IM(convo), args[1], _("User is not logged in"),
-				      PURPLE_MESSAGE_SYSTEM|PURPLE_MESSAGE_NO_LOG, time(NULL));
+			purple_conv_im_write(PURPLE_CONV_IM(convo), args[1], _("User is not logged in"), PURPLE_MESSAGE_SYSTEM | PURPLE_MESSAGE_NO_LOG, time(NULL));
 	} else {
 		if ((gc = purple_account_get_connection(irc->account)) == NULL)
 			return;
@@ -840,14 +846,15 @@ void irc_msg_nonick(struct irc_conn *irc, const char *name, const char *from, ch
 	}
 }
 
-void irc_msg_nosend(struct irc_conn *irc, const char *name, const char *from, char **args)
+void
+irc_msg_nosend(struct irc_conn *irc, const char *name, const char *from, char **args)
 {
 	PurpleConnection *gc;
 	PurpleConversation *convo;
 
 	convo = purple_find_conversation_with_account(PURPLE_CONV_TYPE_CHAT, args[1], irc->account);
 	if (convo) {
-		purple_conv_chat_write(PURPLE_CONV_CHAT(convo), args[1], args[2], PURPLE_MESSAGE_SYSTEM|PURPLE_MESSAGE_NO_LOG, time(NULL));
+		purple_conv_chat_write(PURPLE_CONV_CHAT(convo), args[1], args[2], PURPLE_MESSAGE_SYSTEM | PURPLE_MESSAGE_NO_LOG, time(NULL));
 	} else {
 		if ((gc = purple_account_get_connection(irc->account)) == NULL)
 			return;
@@ -855,7 +862,8 @@ void irc_msg_nosend(struct irc_conn *irc, const char *name, const char *from, ch
 	}
 }
 
-void irc_msg_notinchan(struct irc_conn *irc, const char *name, const char *from, char **args)
+void
+irc_msg_notinchan(struct irc_conn *irc, const char *name, const char *from, char **args)
 {
 	PurpleConversation *convo = purple_find_conversation_with_account(PURPLE_CONV_TYPE_CHAT, args[1], irc->account);
 
@@ -863,11 +871,12 @@ void irc_msg_notinchan(struct irc_conn *irc, const char *name, const char *from,
 	if (convo) {
 		/*g_slist_remove(irc->gc->buddy_chats, convo);
 		  purple_conversation_set_account(convo, NULL);*/
-		purple_conv_chat_write(PURPLE_CONV_CHAT(convo), args[1], args[2], PURPLE_MESSAGE_SYSTEM|PURPLE_MESSAGE_NO_LOG, time(NULL));
+		purple_conv_chat_write(PURPLE_CONV_CHAT(convo), args[1], args[2], PURPLE_MESSAGE_SYSTEM | PURPLE_MESSAGE_NO_LOG, time(NULL));
 	}
 }
 
-void irc_msg_notop(struct irc_conn *irc, const char *name, const char *from, char **args)
+void
+irc_msg_notop(struct irc_conn *irc, const char *name, const char *from, char **args)
 {
 	PurpleConversation *convo;
 
@@ -878,7 +887,8 @@ void irc_msg_notop(struct irc_conn *irc, const char *name, const char *from, cha
 	purple_conv_chat_write(PURPLE_CONV_CHAT(convo), "", args[2], PURPLE_MESSAGE_SYSTEM, time(NULL));
 }
 
-void irc_msg_invite(struct irc_conn *irc, const char *name, const char *from, char **args)
+void
+irc_msg_invite(struct irc_conn *irc, const char *name, const char *from, char **args)
 {
 	PurpleConnection *gc = purple_account_get_connection(irc->account);
 	GHashTable *components;
@@ -895,7 +905,8 @@ void irc_msg_invite(struct irc_conn *irc, const char *name, const char *from, ch
 	g_free(nick);
 }
 
-void irc_msg_inviteonly(struct irc_conn *irc, const char *name, const char *from, char **args)
+void
+irc_msg_inviteonly(struct irc_conn *irc, const char *name, const char *from, char **args)
 {
 	PurpleConnection *gc = purple_account_get_connection(irc->account);
 	char *buf;
@@ -907,7 +918,8 @@ void irc_msg_inviteonly(struct irc_conn *irc, const char *name, const char *from
 	g_free(buf);
 }
 
-void irc_msg_ison(struct irc_conn *irc, const char *name, const char *from, char **args)
+void
+irc_msg_ison(struct irc_conn *irc, const char *name, const char *from, char **args)
 {
 	char **nicks;
 	struct irc_buddy *ib;
@@ -915,7 +927,7 @@ void irc_msg_ison(struct irc_conn *irc, const char *name, const char *from, char
 
 	nicks = g_strsplit(args[1], " ", -1);
 	for (i = 0; nicks[i]; i++) {
-		if ((ib = g_hash_table_lookup(irc->buddies, (gconstpointer)nicks[i])) == NULL) {
+		if ((ib = g_hash_table_lookup(irc->buddies, (gconstpointer) nicks[i])) == NULL) {
 			continue;
 		}
 		ib->new_online_status = TRUE;
@@ -926,10 +938,11 @@ void irc_msg_ison(struct irc_conn *irc, const char *name, const char *from, char
 		irc_buddy_query(irc);
 
 	if (!irc->ison_outstanding)
-		g_hash_table_foreach(irc->buddies, (GHFunc)irc_buddy_status, (gpointer)irc);
+		g_hash_table_foreach(irc->buddies, (GHFunc) irc_buddy_status, (gpointer) irc);
 }
 
-static void irc_buddy_status(char *name, struct irc_buddy *ib, struct irc_conn *irc)
+static void
+irc_buddy_status(char *name, struct irc_buddy *ib, struct irc_conn *irc)
 {
 	PurpleConnection *gc = purple_account_get_connection(irc->account);
 	PurpleBuddy *buddy = purple_find_buddy(irc->account, name);
@@ -946,7 +959,8 @@ static void irc_buddy_status(char *name, struct irc_buddy *ib, struct irc_conn *
 	}
 }
 
-void irc_msg_join(struct irc_conn *irc, const char *name, const char *from, char **args)
+void
+irc_msg_join(struct irc_conn *irc, const char *name, const char *from, char **args)
 {
 	PurpleConnection *gc = purple_account_get_connection(irc->account);
 	PurpleConversation *convo;
@@ -966,15 +980,14 @@ void irc_msg_join(struct irc_conn *irc, const char *name, const char *from, char
 		serv_got_joined_chat(gc, id++, args[0]);
 		g_free(nick);
 		convo = purple_find_conversation_with_account(PURPLE_CONV_TYPE_CHAT,
-							    args[0],
-							    irc->account);
+													  args[0],
+													  irc->account);
 
 		if (convo == NULL) {
 			purple_debug_error("irc", "tried to join %s but couldn't\n", args[0]);
 			return;
 		}
-		purple_conversation_set_data(convo, IRC_NAMES_FLAG,
-					   GINT_TO_POINTER(FALSE));
+		purple_conversation_set_data(convo, IRC_NAMES_FLAG, GINT_TO_POINTER(FALSE));
 
 		// Get the real name and user host for all participants.
 		buf = irc_format(irc, "vc", "WHO", args[0]);
@@ -1015,7 +1028,8 @@ void irc_msg_join(struct irc_conn *irc, const char *name, const char *from, char
 	g_free(nick);
 }
 
-void irc_msg_kick(struct irc_conn *irc, const char *name, const char *from, char **args)
+void
+irc_msg_kick(struct irc_conn *irc, const char *name, const char *from, char **args)
 {
 	PurpleConnection *gc = purple_account_get_connection(irc->account);
 	PurpleConversation *convo = purple_find_conversation_with_account(PURPLE_CONV_TYPE_CHAT, args[0], irc->account);
@@ -1046,12 +1060,13 @@ void irc_msg_kick(struct irc_conn *irc, const char *name, const char *from, char
 	return;
 }
 
-void irc_msg_mode(struct irc_conn *irc, const char *name, const char *from, char **args)
+void
+irc_msg_mode(struct irc_conn *irc, const char *name, const char *from, char **args)
 {
 	PurpleConversation *convo;
 	char *nick = irc_mask_nick(from), *buf;
 
-	if (*args[0] == '#' || *args[0] == '&') {	/* Channel	*/
+	if (*args[0] == '#' || *args[0] == '&') { /* Channel	*/
 		char *escaped;
 		convo = purple_find_conversation_with_account(PURPLE_CONV_TYPE_CHAT, args[0], irc->account);
 		if (!convo) {
@@ -1064,7 +1079,7 @@ void irc_msg_mode(struct irc_conn *irc, const char *name, const char *from, char
 		purple_conv_chat_write(PURPLE_CONV_CHAT(convo), args[0], buf, PURPLE_MESSAGE_SYSTEM, time(NULL));
 		g_free(escaped);
 		g_free(buf);
-		if(args[2]) {
+		if (args[2]) {
 			PurpleConvChatBuddyFlags newflag, flags;
 			char *mcur, *cur, *end, *user;
 			gboolean add = FALSE;
@@ -1084,12 +1099,11 @@ void irc_msg_mode(struct irc_conn *irc, const char *name, const char *from, char
 				newflag = PURPLE_CBFLAGS_NONE;
 				if (*mcur == 'o')
 					newflag = PURPLE_CBFLAGS_OP;
-				else if (*mcur =='h')
+				else if (*mcur == 'h')
 					newflag = PURPLE_CBFLAGS_HALFOP;
 				else if (*mcur == 'v')
 					newflag = PURPLE_CBFLAGS_VOICE;
-				else if(irc->mode_chars
-					  && strchr(irc->mode_chars, '~') && (*mcur == 'q'))
+				else if (irc->mode_chars && strchr(irc->mode_chars, '~') && (*mcur == 'q'))
 					newflag = PURPLE_CBFLAGS_FOUNDER;
 				if (newflag) {
 					if (add)
@@ -1106,12 +1120,13 @@ void irc_msg_mode(struct irc_conn *irc, const char *name, const char *from, char
 					mcur++;
 			}
 		}
-	} else {					/* User		*/
+	} else { /* User		*/
 	}
 	g_free(nick);
 }
 
-void irc_msg_nick(struct irc_conn *irc, const char *name, const char *from, char **args)
+void
+irc_msg_nick(struct irc_conn *irc, const char *name, const char *from, char **args)
 {
 	PurpleConnection *gc = purple_account_get_connection(irc->account);
 	PurpleConversation *conv;
@@ -1138,30 +1153,29 @@ void irc_msg_nick(struct irc_conn *irc, const char *name, const char *from, char
 		chats = chats->next;
 	}
 
-	conv = purple_find_conversation_with_account(PURPLE_CONV_TYPE_IM, nick,
-						   irc->account);
+	conv = purple_find_conversation_with_account(PURPLE_CONV_TYPE_IM, nick, irc->account);
 	if (conv != NULL)
 		purple_conversation_set_name(conv, args[0]);
 
 	g_free(nick);
 }
 
-void irc_msg_badnick(struct irc_conn *irc, const char *name, const char *from, char **args)
+void
+irc_msg_badnick(struct irc_conn *irc, const char *name, const char *from, char **args)
 {
 	PurpleConnection *gc = purple_account_get_connection(irc->account);
 	if (purple_connection_get_state(gc) == PURPLE_CONNECTED) {
-		purple_notify_error(gc, _("Invalid nickname"),
-				  _("Invalid nickname"),
-				  _("Your selected nickname was rejected by the server.  It probably contains invalid characters."));
+		purple_notify_error(gc, _("Invalid nickname"), _("Invalid nickname"), _("Your selected nickname was rejected by the server.  It probably contains invalid characters."));
 
 	} else {
-		purple_connection_error_reason (gc,
-				  PURPLE_CONNECTION_ERROR_INVALID_SETTINGS,
-				  _("Your selected account name was rejected by the server.  It probably contains invalid characters."));
+		purple_connection_error_reason(gc,
+									   PURPLE_CONNECTION_ERROR_INVALID_SETTINGS,
+									   _("Your selected account name was rejected by the server.  It probably contains invalid characters."));
 	}
 }
 
-void irc_msg_nickused(struct irc_conn *irc, const char *name, const char *from, char **args)
+void
+irc_msg_nickused(struct irc_conn *irc, const char *name, const char *from, char **args)
 {
 	char *newnick, *buf, *end;
 	PurpleConnection *gc = purple_account_get_connection(irc->account);
@@ -1171,9 +1185,8 @@ void irc_msg_nickused(struct irc_conn *irc, const char *name, const char *from, 
 		   has not been successfully completed.  If it has, just
 		   notify the user that their /nick command didn't go. */
 		buf = g_strdup_printf(_("The nickname \"%s\" is already being used."),
-				      irc->reqnick);
-		purple_notify_error(gc, _("Nickname in use"),
-				    _("Nickname in use"), buf);
+							  irc->reqnick);
+		purple_notify_error(gc, _("Nickname in use"), _("Nickname in use"), buf);
 		g_free(buf);
 		g_free(irc->reqnick);
 		irc->reqnick = NULL;
@@ -1186,28 +1199,31 @@ void irc_msg_nickused(struct irc_conn *irc, const char *name, const char *from, 
 		newnick = g_strdup_printf("%s0", args[1]);
 	end = newnick + strlen(newnick) - 1;
 	/* try fallbacks */
-	if((*end < '9') && (*end >= '1')) {
-			*end = *end + 1;
-	} else *end = '1';
+	if ((*end < '9') && (*end >= '1')) {
+		*end = *end + 1;
+	} else
+		*end = '1';
 
 	g_free(irc->reqnick);
 	irc->reqnick = newnick;
 	irc->nickused = TRUE;
 
 	purple_connection_set_display_name(
-		purple_account_get_connection(irc->account), newnick);
+	  purple_account_get_connection(irc->account), newnick);
 
 	buf = irc_format(irc, "vn", "NICK", newnick);
 	irc_send(irc, buf);
 	g_free(buf);
 }
 
-void irc_msg_notice(struct irc_conn *irc, const char *name, const char *from, char **args)
+void
+irc_msg_notice(struct irc_conn *irc, const char *name, const char *from, char **args)
 {
 	irc_msg_handle_privmsg(irc, name, from, args[0], args[1], TRUE);
 }
 
-void irc_msg_nochangenick(struct irc_conn *irc, const char *name, const char *from, char **args)
+void
+irc_msg_nochangenick(struct irc_conn *irc, const char *name, const char *from, char **args)
 {
 	PurpleConnection *gc = purple_account_get_connection(irc->account);
 
@@ -1216,7 +1232,8 @@ void irc_msg_nochangenick(struct irc_conn *irc, const char *name, const char *fr
 	purple_notify_error(gc, _("Cannot change nick"), _("Could not change nick"), args[2]);
 }
 
-void irc_msg_part(struct irc_conn *irc, const char *name, const char *from, char **args)
+void
+irc_msg_part(struct irc_conn *irc, const char *name, const char *from, char **args)
 {
 	PurpleConnection *gc = purple_account_get_connection(irc->account);
 	PurpleConversation *convo;
@@ -1238,8 +1255,8 @@ void irc_msg_part(struct irc_conn *irc, const char *name, const char *from, char
 	if (!purple_utf8_strcasecmp(nick, purple_connection_get_display_name(gc))) {
 		char *escaped = args[1] ? g_markup_escape_text(args[1], -1) : NULL;
 		msg = g_strdup_printf(_("You have parted the channel%s%s"),
-		                      (args[1] && *args[1]) ? ": " : "",
-		                      (escaped && *escaped) ? escaped : "");
+							  (args[1] && *args[1]) ? ": " : "",
+							  (escaped && *escaped) ? escaped : "");
 		g_free(escaped);
 		purple_conv_chat_write(PURPLE_CONV_CHAT(convo), channel, msg, PURPLE_MESSAGE_SYSTEM, time(NULL));
 		g_free(msg);
@@ -1252,7 +1269,8 @@ void irc_msg_part(struct irc_conn *irc, const char *name, const char *from, char
 	g_free(nick);
 }
 
-void irc_msg_ping(struct irc_conn *irc, const char *name, const char *from, char **args)
+void
+irc_msg_ping(struct irc_conn *irc, const char *name, const char *from, char **args)
 {
 	char *buf;
 
@@ -1261,7 +1279,8 @@ void irc_msg_ping(struct irc_conn *irc, const char *name, const char *from, char
 	g_free(buf);
 }
 
-void irc_msg_pong(struct irc_conn *irc, const char *name, const char *from, char **args)
+void
+irc_msg_pong(struct irc_conn *irc, const char *name, const char *from, char **args)
 {
 	PurpleConversation *convo;
 	PurpleConnection *gc;
@@ -1284,10 +1303,10 @@ void irc_msg_pong(struct irc_conn *irc, const char *name, const char *from, char
 	convo = purple_find_conversation_with_account(PURPLE_CONV_TYPE_ANY, parts[0], irc->account);
 	g_strfreev(parts);
 	if (convo) {
-		if (purple_conversation_get_type (convo) == PURPLE_CONV_TYPE_CHAT)
-			purple_conv_chat_write(PURPLE_CONV_CHAT(convo), "PONG", msg, PURPLE_MESSAGE_SYSTEM|PURPLE_MESSAGE_NO_LOG, time(NULL));
+		if (purple_conversation_get_type(convo) == PURPLE_CONV_TYPE_CHAT)
+			purple_conv_chat_write(PURPLE_CONV_CHAT(convo), "PONG", msg, PURPLE_MESSAGE_SYSTEM | PURPLE_MESSAGE_NO_LOG, time(NULL));
 		else
-			purple_conv_im_write(PURPLE_CONV_IM(convo), "PONG", msg, PURPLE_MESSAGE_SYSTEM|PURPLE_MESSAGE_NO_LOG, time(NULL));
+			purple_conv_im_write(PURPLE_CONV_IM(convo), "PONG", msg, PURPLE_MESSAGE_SYSTEM | PURPLE_MESSAGE_NO_LOG, time(NULL));
 	} else {
 		gc = purple_account_get_connection(irc->account);
 		if (!gc) {
@@ -1299,12 +1318,14 @@ void irc_msg_pong(struct irc_conn *irc, const char *name, const char *from, char
 	g_free(msg);
 }
 
-void irc_msg_privmsg(struct irc_conn *irc, const char *name, const char *from, char **args)
+void
+irc_msg_privmsg(struct irc_conn *irc, const char *name, const char *from, char **args)
 {
 	irc_msg_handle_privmsg(irc, name, from, args[0], args[1], FALSE);
 }
 
-static void irc_msg_handle_privmsg(struct irc_conn *irc, const char *name, const char *from, const char *to, const char *rawmsg, gboolean notice)
+static void
+irc_msg_handle_privmsg(struct irc_conn *irc, const char *name, const char *from, const char *to, const char *rawmsg, gboolean notice)
 {
 	PurpleConnection *gc = purple_account_get_connection(irc->account);
 	PurpleConversation *convo;
@@ -1360,15 +1381,15 @@ static void irc_msg_handle_privmsg(struct irc_conn *irc, const char *name, const
 		if (convo) {
 			serv_got_chat_in(gc, purple_conv_chat_get_id(PURPLE_CONV_CHAT(convo)), nick, 0, msg, now);
 		} else {
-			purple_debug_error("irc", "Got a %s on %s, which does not exist\n",
-			                   notice ? "NOTICE" : "PRIVMSG", to);
+			purple_debug_error("irc", "Got a %s on %s, which does not exist\n", notice ? "NOTICE" : "PRIVMSG", to);
 		}
 	}
 	g_free(msg);
 	g_free(nick);
 }
 
-void irc_msg_regonly(struct irc_conn *irc, const char *name, const char *from, char **args)
+void
+irc_msg_regonly(struct irc_conn *irc, const char *name, const char *from, char **args)
 {
 	PurpleConnection *gc = purple_account_get_connection(irc->account);
 	PurpleConversation *convo;
@@ -1390,7 +1411,8 @@ void irc_msg_regonly(struct irc_conn *irc, const char *name, const char *from, c
 	g_free(msg);
 }
 
-void irc_msg_quit(struct irc_conn *irc, const char *name, const char *from, char **args)
+void
+irc_msg_quit(struct irc_conn *irc, const char *name, const char *from, char **args)
 {
 	PurpleConnection *gc = purple_account_get_connection(irc->account);
 	struct irc_buddy *ib;
@@ -1401,7 +1423,7 @@ void irc_msg_quit(struct irc_conn *irc, const char *name, const char *from, char
 	data[0] = irc_mask_nick(from);
 	data[1] = args[0];
 	/* XXX this should have an API, I shouldn't grab this directly */
-	g_slist_foreach(gc->buddy_chats, (GFunc)irc_chat_remove_buddy, data);
+	g_slist_foreach(gc->buddy_chats, (GFunc) irc_chat_remove_buddy, data);
 
 	if ((ib = g_hash_table_lookup(irc->buddies, data[0])) != NULL) {
 		ib->new_online_status = FALSE;
@@ -1412,14 +1434,16 @@ void irc_msg_quit(struct irc_conn *irc, const char *name, const char *from, char
 	return;
 }
 
-void irc_msg_unavailable(struct irc_conn *irc, const char *name, const char *from, char **args)
+void
+irc_msg_unavailable(struct irc_conn *irc, const char *name, const char *from, char **args)
 {
 	PurpleConnection *gc = purple_account_get_connection(irc->account);
 
 	purple_notify_error(gc, NULL, _("Nick or channel is temporarily unavailable."), args[1]);
 }
 
-void irc_msg_wallops(struct irc_conn *irc, const char *name, const char *from, char **args)
+void
+irc_msg_wallops(struct irc_conn *irc, const char *name, const char *from, char **args)
 {
 	PurpleConnection *gc = purple_account_get_connection(irc->account);
 	char *nick, *msg;
@@ -1427,7 +1451,7 @@ void irc_msg_wallops(struct irc_conn *irc, const char *name, const char *from, c
 	g_return_if_fail(gc);
 
 	nick = irc_mask_nick(from);
-	msg = g_strdup_printf (_("Wallops from %s"), nick);
+	msg = g_strdup_printf(_("Wallops from %s"), nick);
 	g_free(nick);
 	purple_notify_info(gc, NULL, msg, args[0]);
 	g_free(msg);
@@ -1455,7 +1479,7 @@ irc_sasl_cb_secret(sasl_conn_t *conn, void *ctx, int id, sasl_secret_t **secret)
 		return SASL_NOMEM;
 
 	sasl_secret->len = len;
-	strcpy((char*)sasl_secret->data, pw);
+	strcpy((char *) sasl_secret->data, pw);
 
 	*secret = sasl_secret;
 	return SASL_OK;
@@ -1464,7 +1488,7 @@ irc_sasl_cb_secret(sasl_conn_t *conn, void *ctx, int id, sasl_secret_t **secret)
 static int
 irc_sasl_cb_log(void *context, int level, const char *message)
 {
-	if(level <= SASL_LOG_TRACE)
+	if (level <= SASL_LOG_TRACE)
 		purple_debug_info("sasl", "%s\n", message);
 
 	return SASL_OK;
@@ -1476,23 +1500,24 @@ irc_sasl_cb_simple(void *ctx, int id, const char **res, unsigned *len)
 	struct irc_conn *irc = ctx;
 	PurpleConnection *gc = purple_account_get_connection(irc->account);
 	const char *saslname =
-		purple_account_get_string(irc->account, "saslname", NULL);
+	  purple_account_get_string(irc->account, "saslname", NULL);
 
-	if(saslname == NULL || *saslname == '\0') {
+	if (saslname == NULL || *saslname == '\0') {
 		saslname = purple_connection_get_display_name(gc);
 	}
 
-	switch(id) {
-		case SASL_CB_AUTHNAME:
-			*res = saslname;
-			break;
-		case SASL_CB_USER:
-			*res = "";
-			break;
-		default:
-			return SASL_BADPARAM;
+	switch (id) {
+	case SASL_CB_AUTHNAME:
+		*res = saslname;
+		break;
+	case SASL_CB_USER:
+		*res = "";
+		break;
+	default:
+		return SASL_BADPARAM;
 	}
-	if (len) *len = strlen((char *)*res);
+	if (len)
+		*len = strlen((char *) *res);
 	return SASL_OK;
 }
 
@@ -1539,9 +1564,10 @@ irc_auth_start_cyrus(struct irc_conn *irc)
 		if (ret != SASL_OK) {
 			purple_debug_error("irc", "sasl_client_new failed: %d\n", ret);
 			tmp = g_strdup_printf(_("Failed to initialize SASL authentication: %s"),
-				sasl_errdetail(irc->sasl_conn));
-			purple_connection_error_reason (gc,
-				PURPLE_CONNECTION_ERROR_OTHER_ERROR, tmp);
+								  sasl_errdetail(irc->sasl_conn));
+			purple_connection_error_reason(gc,
+										   PURPLE_CONNECTION_ERROR_OTHER_ERROR,
+										   tmp);
 			g_free(tmp);
 			return;
 		}
@@ -1552,44 +1578,45 @@ irc_auth_start_cyrus(struct irc_conn *irc)
 		ret = sasl_client_start(irc->sasl_conn, irc->sasl_mechs->str, NULL, NULL, NULL, &irc->current_mech);
 
 		switch (ret) {
-			case SASL_OK:
-			case SASL_CONTINUE:
-				irc->mech_works = FALSE;
-				break;
-			case SASL_NOMECH:
-				purple_connection_error_reason (gc,
-					PURPLE_CONNECTION_ERROR_AUTHENTICATION_IMPOSSIBLE,
-					_("SASL authentication failed: No worthy authentication mechanisms found."));
+		case SASL_OK:
+		case SASL_CONTINUE:
+			irc->mech_works = FALSE;
+			break;
+		case SASL_NOMECH:
+			purple_connection_error_reason(gc,
+										   PURPLE_CONNECTION_ERROR_AUTHENTICATION_IMPOSSIBLE,
+										   _("SASL authentication failed: No worthy authentication mechanisms found."));
 
-				irc_sasl_finish(irc);
-				return;
-			case SASL_BADPARAM:
-			case SASL_NOMEM:
-				tmp = g_strdup_printf(_("SASL authentication failed: %s"), sasl_errdetail(irc->sasl_conn));
-				purple_connection_error_reason (gc,
-					PURPLE_CONNECTION_ERROR_OTHER_ERROR, tmp);
-				g_free(tmp);
+			irc_sasl_finish(irc);
+			return;
+		case SASL_BADPARAM:
+		case SASL_NOMEM:
+			tmp = g_strdup_printf(_("SASL authentication failed: %s"), sasl_errdetail(irc->sasl_conn));
+			purple_connection_error_reason(gc,
+										   PURPLE_CONNECTION_ERROR_OTHER_ERROR,
+										   tmp);
+			g_free(tmp);
 
-				irc_sasl_finish(irc);
-				return;
-			default:
-				purple_debug_error("irc", "sasl_client_start failed: %s\n", sasl_errdetail(irc->sasl_conn));
+			irc_sasl_finish(irc);
+			return;
+		default:
+			purple_debug_error("irc", "sasl_client_start failed: %s\n", sasl_errdetail(irc->sasl_conn));
 
-				if (irc->current_mech && *irc->current_mech) {
-					char *pos;
-					if ((pos = strstr(irc->sasl_mechs->str, irc->current_mech))) {
-						size_t index = pos - irc->sasl_mechs->str;
-						g_string_erase(irc->sasl_mechs, index, strlen(irc->current_mech));
+			if (irc->current_mech && *irc->current_mech) {
+				char *pos;
+				if ((pos = strstr(irc->sasl_mechs->str, irc->current_mech))) {
+					size_t index = pos - irc->sasl_mechs->str;
+					g_string_erase(irc->sasl_mechs, index, strlen(irc->current_mech));
 
-						/* Remove space which separated this mech from the next */
-						if ((irc->sasl_mechs->str)[index] == ' ') {
-							g_string_erase(irc->sasl_mechs, index, 1);
-						}
+					/* Remove space which separated this mech from the next */
+					if ((irc->sasl_mechs->str)[index] == ' ') {
+						g_string_erase(irc->sasl_mechs, index, 1);
 					}
-
-					again = TRUE;
 				}
-				irc_sasl_finish(irc);
+
+				again = TRUE;
+			}
+			irc_sasl_finish(irc);
 		}
 	} while (again);
 
@@ -1617,17 +1644,17 @@ irc_msg_auth(struct irc_conn *irc, char *arg)
 		return;
 
 	if (arg[0] != '+')
-		serverin = (char *)purple_base64_decode(arg, &serverinlen);
+		serverin = (char *) purple_base64_decode(arg, &serverinlen);
 
-	ret = sasl_client_step(irc->sasl_conn, serverin, serverinlen,
-		NULL, &c_out, &clen);
+	ret = sasl_client_step(irc->sasl_conn, serverin, serverinlen, NULL, &c_out, &clen);
 
 	if (ret != SASL_OK && ret != SASL_CONTINUE) {
 
 		gchar *tmp = g_strdup_printf(_("SASL authentication failed: %s"),
-			sasl_errdetail(irc->sasl_conn));
-		purple_connection_error_reason (gc,
-			PURPLE_CONNECTION_ERROR_AUTHENTICATION_IMPOSSIBLE, tmp);
+									 sasl_errdetail(irc->sasl_conn));
+		purple_connection_error_reason(gc,
+									   PURPLE_CONNECTION_ERROR_AUTHENTICATION_IMPOSSIBLE,
+									   tmp);
 		g_free(tmp);
 
 		irc_sasl_finish(irc);
@@ -1636,7 +1663,7 @@ irc_msg_auth(struct irc_conn *irc, char *arg)
 	}
 
 	if (clen > 0)
-		authinfo = purple_base64_encode((const guchar*)c_out, clen);
+		authinfo = purple_base64_encode((const guchar *) c_out, clen);
 	else
 		authinfo = g_strdup("+");
 
@@ -1680,8 +1707,9 @@ irc_msg_authtryagain(struct irc_conn *irc, const char *name, const char *from, c
 	 * aren't told the server supports no worthy mechanisms.
 	 */
 	if (irc->mech_works) {
-		purple_connection_error_reason (gc,
-			PURPLE_CONNECTION_ERROR_AUTHENTICATION_FAILED, _("Incorrect Password"));
+		purple_connection_error_reason(gc,
+									   PURPLE_CONNECTION_ERROR_AUTHENTICATION_FAILED,
+									   _("Incorrect Password"));
 
 		irc_sasl_finish(irc);
 
@@ -1706,9 +1734,9 @@ irc_msg_authtryagain(struct irc_conn *irc, const char *name, const char *from, c
 		purple_debug_info("irc", "Now trying with %s\n", irc->sasl_mechs->str);
 		irc_auth_start_cyrus(irc);
 	} else {
-		purple_connection_error_reason (gc,
-			PURPLE_CONNECTION_ERROR_AUTHENTICATION_IMPOSSIBLE,
-			_("SASL authentication failed: No worthy mechanisms found"));
+		purple_connection_error_reason(gc,
+									   PURPLE_CONNECTION_ERROR_AUTHENTICATION_IMPOSSIBLE,
+									   _("SASL authentication failed: No worthy mechanisms found"));
 
 		irc_sasl_finish(irc);
 	}
@@ -1723,8 +1751,9 @@ irc_msg_authfail(struct irc_conn *irc, const char *name, const char *from, char 
 	if (irc->sasl_conn) {
 		purple_debug_info("irc", "SASL authentication failed: %s", sasl_errdetail(irc->sasl_conn));
 
-		purple_connection_error_reason (gc,
-			PURPLE_CONNECTION_ERROR_AUTHENTICATION_FAILED, _("Incorrect Password"));
+		purple_connection_error_reason(gc,
+									   PURPLE_CONNECTION_ERROR_AUTHENTICATION_FAILED,
+									   _("Incorrect Password"));
 	}
 
 	irc_sasl_finish(irc);
@@ -1749,7 +1778,8 @@ irc_sasl_finish(struct irc_conn *irc)
 #endif
 
 /* IRCv3 capabilities negotiation */
-void irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **args)
+void
+irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **args)
 {
 	PurpleConnection *gc = purple_account_get_connection(irc->account);
 	const char *subcmd = args[1];
@@ -1762,21 +1792,21 @@ void irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char 
 
 		cap_array = g_strsplit(caps, " ", -1);
 		for (i = 0; cap_array[i] != NULL; i++) {
-		if (strcmp(cap_array[i], "message-tags") == 0) {
-			g_string_append(req, "message-tags ");
-		} else if (strcmp(cap_array[i], "echo-message") == 0) {
-			g_string_append(req, "echo-message ");
-		} else if (strcmp(cap_array[i], "labeled-response") == 0) {
-			g_string_append(req, "labeled-response ");
-		} else if (strcmp(cap_array[i], "server-time") == 0) {
-			g_string_append(req, "server-time ");
-		}
-	#ifdef HAVE_CYRUS_SASL
-		else if ((strcmp(cap_array[i], "sasl") == 0 || strncmp(cap_array[i], "sasl=", 5) == 0) &&
-				purple_account_get_bool(irc->account, "sasl", FALSE)) {
-			g_string_append(req, "sasl ");
-		}
-	#endif
+			if (strcmp(cap_array[i], "message-tags") == 0) {
+				g_string_append(req, "message-tags ");
+			} else if (strcmp(cap_array[i], "echo-message") == 0) {
+				g_string_append(req, "echo-message ");
+			} else if (strcmp(cap_array[i], "labeled-response") == 0) {
+				g_string_append(req, "labeled-response ");
+			} else if (strcmp(cap_array[i], "server-time") == 0) {
+				g_string_append(req, "server-time ");
+			}
+#ifdef HAVE_CYRUS_SASL
+			else if ((strcmp(cap_array[i], "sasl") == 0 || strncmp(cap_array[i], "sasl=", 5) == 0) &&
+					 purple_account_get_bool(irc->account, "sasl", FALSE)) {
+				g_string_append(req, "sasl ");
+			}
+#endif
 		}
 		g_strfreev(cap_array);
 
@@ -1829,7 +1859,7 @@ void irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char 
 			}
 #endif
 		}
-    	g_strfreev(cap_array);
+		g_strfreev(cap_array);
 
 #ifdef HAVE_CYRUS_SASL
 		if (sasl_acked) {
@@ -1841,38 +1871,36 @@ void irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char 
 
 			if (sasl_client_init(NULL) != SASL_OK) {
 				const char *tmp =
-					_("SASL authentication failed: Initializing SASL failed.");
-				purple_connection_error_reason(gc, PURPLE_CONNECTION_ERROR_OTHER_ERROR,
-											tmp);
+				  _("SASL authentication failed: Initializing SASL failed.");
+				purple_connection_error_reason(gc, PURPLE_CONNECTION_ERROR_OTHER_ERROR, tmp);
 				return;
 			}
 
 			irc->sasl_cb = g_new0(sasl_callback_t, 5);
 
 			irc->sasl_cb[id].id = SASL_CB_AUTHNAME;
-			irc->sasl_cb[id].proc = (void *)irc_sasl_cb_simple;
-			irc->sasl_cb[id].context = (void *)irc;
+			irc->sasl_cb[id].proc = (void *) irc_sasl_cb_simple;
+			irc->sasl_cb[id].context = (void *) irc;
 			id++;
 
 			irc->sasl_cb[id].id = SASL_CB_USER;
-			irc->sasl_cb[id].proc = (void *)irc_sasl_cb_simple;
-			irc->sasl_cb[id].context = (void *)irc;
+			irc->sasl_cb[id].proc = (void *) irc_sasl_cb_simple;
+			irc->sasl_cb[id].context = (void *) irc;
 			id++;
 
 			irc->sasl_cb[id].id = SASL_CB_PASS;
-			irc->sasl_cb[id].proc = (void *)irc_sasl_cb_secret;
-			irc->sasl_cb[id].context = (void *)irc;
+			irc->sasl_cb[id].proc = (void *) irc_sasl_cb_secret;
+			irc->sasl_cb[id].context = (void *) irc;
 			id++;
 
 			irc->sasl_cb[id].id = SASL_CB_LOG;
-			irc->sasl_cb[id].proc = (void *)irc_sasl_cb_log;
-			irc->sasl_cb[id].context = (void *)irc;
+			irc->sasl_cb[id].proc = (void *) irc_sasl_cb_log;
+			irc->sasl_cb[id].context = (void *) irc;
 			id++;
 
 			irc->sasl_cb[id].id = SASL_CB_LIST_END;
 
-			ret = sasl_client_new("irc", irc->server, NULL, NULL, irc->sasl_cb, 0,
-									&irc->sasl_conn);
+			ret = sasl_client_new("irc", irc->server, NULL, NULL, irc->sasl_cb, 0, &irc->sasl_conn);
 
 			sasl_listmech(irc->sasl_conn, NULL, "", " ", "", &mech_list, NULL, NULL);
 			purple_debug_info("irc", "SASL: we have available: %s\n", mech_list);
@@ -1882,9 +1910,8 @@ void irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char 
 
 				purple_debug_error("irc", "sasl_client_new failed: %d\n", ret);
 				tmp = g_strdup_printf(_("Failed to initialize SASL authentication: %s"),
-									sasl_errdetail(irc->sasl_conn));
-				purple_connection_error_reason(gc, PURPLE_CONNECTION_ERROR_OTHER_ERROR,
-											tmp);
+									  sasl_errdetail(irc->sasl_conn));
+				purple_connection_error_reason(gc, PURPLE_CONNECTION_ERROR_OTHER_ERROR, tmp);
 				g_free(tmp);
 
 				return;
@@ -1912,7 +1939,9 @@ void irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char 
 	}
 }
 
-void irc_msg_tagmsg(struct irc_conn *irc, const char *name, const char *from, char **args) {
+void
+irc_msg_tagmsg(struct irc_conn *irc, const char *name, const char *from, char **args)
+{
 	PurpleConnection *gc = purple_account_get_connection(irc->account);
 	gchar **tags_arr, **kv;
 	int i;
@@ -1958,7 +1987,8 @@ void irc_msg_tagmsg(struct irc_conn *irc, const char *name, const char *from, ch
 	g_strfreev(tags_arr);
 }
 
-void irc_msg_ignore(struct irc_conn *irc, const char *name, const char *from, char **args)
+void
+irc_msg_ignore(struct irc_conn *irc, const char *name, const char *from, char **args)
 {
 	return;
 }

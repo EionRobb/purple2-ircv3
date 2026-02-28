@@ -22,10 +22,11 @@
 
 #include "irc.h"
 
+static void
+irc_do_mode(struct irc_conn *irc, const char *target, const char *sign, char **ops);
 
-static void irc_do_mode(struct irc_conn *irc, const char *target, const char *sign, char **ops);
-
-int irc_cmd_default(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
+int
+irc_cmd_default(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
 {
 	PurpleConversation *convo = purple_find_conversation_with_account(PURPLE_CONV_TYPE_ANY, target, irc->account);
 	char *buf;
@@ -35,15 +36,16 @@ int irc_cmd_default(struct irc_conn *irc, const char *cmd, const char *target, c
 
 	buf = g_strdup_printf(_("Unknown command: %s"), cmd);
 	if (purple_conversation_get_type(convo) == PURPLE_CONV_TYPE_IM)
-		purple_conv_im_write(PURPLE_CONV_IM(convo), "", buf, PURPLE_MESSAGE_SYSTEM|PURPLE_MESSAGE_NO_LOG, time(NULL));
+		purple_conv_im_write(PURPLE_CONV_IM(convo), "", buf, PURPLE_MESSAGE_SYSTEM | PURPLE_MESSAGE_NO_LOG, time(NULL));
 	else
-		purple_conv_chat_write(PURPLE_CONV_CHAT(convo), "", buf, PURPLE_MESSAGE_SYSTEM|PURPLE_MESSAGE_NO_LOG, time(NULL));
+		purple_conv_chat_write(PURPLE_CONV_CHAT(convo), "", buf, PURPLE_MESSAGE_SYSTEM | PURPLE_MESSAGE_NO_LOG, time(NULL));
 	g_free(buf);
 
 	return 1;
 }
 
-int irc_cmd_away(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
+int
+irc_cmd_away(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
 {
 	char *buf, *message;
 
@@ -61,7 +63,8 @@ int irc_cmd_away(struct irc_conn *irc, const char *cmd, const char *target, cons
 	return 0;
 }
 
-int irc_cmd_ctcp(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
+int
+irc_cmd_ctcp(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
 {
 	/* we have defined args as args[0] is target and args[1] is ctcp command */
 	char *buf;
@@ -75,10 +78,10 @@ int irc_cmd_ctcp(struct irc_conn *irc, const char *cmd, const char *target, cons
 	 * actually, this shouldn't be done here but somewhere else since irc should support escaping newlines */
 
 	string = g_string_new(args[1]);
-	g_string_prepend_c (string,'\001');
-	g_string_append_c (string,'\001');
+	g_string_prepend_c(string, '\001');
+	g_string_append_c(string, '\001');
 	buf = irc_format(irc, "vn:", "PRIVMSG", args[0], string->str);
-	g_string_free(string,TRUE);
+	g_string_free(string, TRUE);
 
 	irc_send(irc, buf);
 	g_free(buf);
@@ -86,7 +89,8 @@ int irc_cmd_ctcp(struct irc_conn *irc, const char *cmd, const char *target, cons
 	return 1;
 }
 
-int irc_cmd_ctcp_action(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
+int
+irc_cmd_ctcp_action(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
 {
 	PurpleConnection *gc = purple_account_get_connection(irc->account);
 	char *action, *escaped, *dst, **newargs;
@@ -98,19 +102,24 @@ int irc_cmd_ctcp_action(struct irc_conn *irc, const char *cmd, const char *targe
 		return 0;
 
 	convo = purple_find_conversation_with_account(PURPLE_CONV_TYPE_ANY,
-		target, irc->account);
+												  target,
+												  irc->account);
 
 	msg = g_strdup_printf("/me %s", args[0]);
 
 	/* XXX: we'd prefer to keep this in conversation.c */
 	if (purple_conversation_get_type(convo) == PURPLE_CONV_TYPE_IM) {
 		purple_signal_emit(purple_conversations_get_handle(),
-			"sending-im-msg", irc->account,
-			purple_conversation_get_name(convo), &msg);
+						   "sending-im-msg",
+						   irc->account,
+						   purple_conversation_get_name(convo),
+						   &msg);
 	} else {
 		purple_signal_emit(purple_conversations_get_handle(),
-			"sending-chat-msg", irc->account, &msg,
-			purple_conv_chat_get_id(PURPLE_CONV_CHAT(convo)));
+						   "sending-chat-msg",
+						   irc->account,
+						   &msg,
+						   purple_conv_chat_get_id(PURPLE_CONV_CHAT(convo)));
 	}
 
 	if (!msg || !msg[0]) {
@@ -123,7 +132,7 @@ int irc_cmd_ctcp_action(struct irc_conn *irc, const char *cmd, const char *targe
 		newargs[0] = g_strdup(target);
 		newargs[1] = msg;
 
-		irc_cmd_privmsg(irc, cmd, target, (const char **)newargs);
+		irc_cmd_privmsg(irc, cmd, target, (const char **) newargs);
 
 		g_free(newargs[0]);
 		g_free(newargs);
@@ -152,7 +161,7 @@ int irc_cmd_ctcp_action(struct irc_conn *irc, const char *cmd, const char *targe
 		newargs = g_new0(char *, 2);
 		newargs[0] = g_strdup(target);
 		newargs[1] = action;
-		irc_cmd_privmsg(irc, cmd, target, (const char **)newargs);
+		irc_cmd_privmsg(irc, cmd, target, (const char **) newargs);
 		g_free(newargs[0]);
 		g_free(newargs);
 		g_free(action);
@@ -161,12 +170,16 @@ int irc_cmd_ctcp_action(struct irc_conn *irc, const char *cmd, const char *targe
 	/* XXX: we'd prefer to keep this in conversation.c */
 	if (purple_conversation_get_type(convo) == PURPLE_CONV_TYPE_IM) {
 		purple_signal_emit(purple_conversations_get_handle(),
-			"sent-im-msg", irc->account,
-			purple_conversation_get_name(convo), msg);
+						   "sent-im-msg",
+						   irc->account,
+						   purple_conversation_get_name(convo),
+						   msg);
 	} else {
 		purple_signal_emit(purple_conversations_get_handle(),
-			"sent-chat-msg", irc->account, msg,
-			purple_conv_chat_get_id(PURPLE_CONV_CHAT(convo)));
+						   "sent-chat-msg",
+						   irc->account,
+						   msg,
+						   purple_conv_chat_get_id(PURPLE_CONV_CHAT(convo)));
 	}
 
 	g_free(msg);
@@ -178,19 +191,17 @@ int irc_cmd_ctcp_action(struct irc_conn *irc, const char *cmd, const char *targe
 		if (action[strlen(action) - 1] == '\n')
 			action[strlen(action) - 1] = '\0';
 		if (purple_conversation_get_type(convo) == PURPLE_CONV_TYPE_CHAT)
-			serv_got_chat_in(gc, purple_conv_chat_get_id(PURPLE_CONV_CHAT(convo)),
-			                 purple_connection_get_display_name(gc),
-			                 PURPLE_MESSAGE_SEND, action, time(NULL));
+			serv_got_chat_in(gc, purple_conv_chat_get_id(PURPLE_CONV_CHAT(convo)), purple_connection_get_display_name(gc), PURPLE_MESSAGE_SEND, action, time(NULL));
 		else
-			purple_conv_im_write(PURPLE_CONV_IM(convo), purple_connection_get_display_name(gc),
-			                     action, PURPLE_MESSAGE_SEND, time(NULL));
+			purple_conv_im_write(PURPLE_CONV_IM(convo), purple_connection_get_display_name(gc), action, PURPLE_MESSAGE_SEND, time(NULL));
 		g_free(action);
 	}
 
 	return 1;
 }
 
-int irc_cmd_ctcp_version(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
+int
+irc_cmd_ctcp_version(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
 {
 	char *buf;
 
@@ -204,7 +215,8 @@ int irc_cmd_ctcp_version(struct irc_conn *irc, const char *cmd, const char *targ
 	return 0;
 }
 
-int irc_cmd_invite(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
+int
+irc_cmd_invite(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
 {
 	char *buf;
 
@@ -218,7 +230,8 @@ int irc_cmd_invite(struct irc_conn *irc, const char *cmd, const char *target, co
 	return 0;
 }
 
-int irc_cmd_join(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
+int
+irc_cmd_join(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
 {
 	char *buf;
 
@@ -235,7 +248,8 @@ int irc_cmd_join(struct irc_conn *irc, const char *cmd, const char *target, cons
 	return 0;
 }
 
-int irc_cmd_kick(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
+int
+irc_cmd_kick(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
 {
 	char *buf;
 	PurpleConversation *convo;
@@ -257,14 +271,16 @@ int irc_cmd_kick(struct irc_conn *irc, const char *cmd, const char *target, cons
 	return 0;
 }
 
-int irc_cmd_list(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
+int
+irc_cmd_list(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
 {
 	purple_roomlist_show_with_account(irc->account);
 
 	return 0;
 }
 
-int irc_cmd_mode(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
+int
+irc_cmd_mode(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
 {
 	PurpleConnection *gc;
 	char *buf;
@@ -296,7 +312,8 @@ int irc_cmd_mode(struct irc_conn *irc, const char *cmd, const char *target, cons
 	return 0;
 }
 
-int irc_cmd_names(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
+int
+irc_cmd_names(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
 {
 	char *buf;
 
@@ -310,7 +327,8 @@ int irc_cmd_names(struct irc_conn *irc, const char *cmd, const char *target, con
 	return 0;
 }
 
-int irc_cmd_nick(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
+int
+irc_cmd_nick(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
 {
 	char *buf;
 
@@ -327,7 +345,8 @@ int irc_cmd_nick(struct irc_conn *irc, const char *cmd, const char *target, cons
 	return 0;
 }
 
-int irc_cmd_op(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
+int
+irc_cmd_op(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
 {
 	char **nicks, **ops, *sign, *mode;
 	int i = 0, used = 0;
@@ -372,7 +391,8 @@ int irc_cmd_op(struct irc_conn *irc, const char *cmd, const char *target, const 
 	return 0;
 }
 
-int irc_cmd_part(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
+int
+irc_cmd_part(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
 {
 	char *buf;
 
@@ -389,7 +409,8 @@ int irc_cmd_part(struct irc_conn *irc, const char *cmd, const char *target, cons
 	return 0;
 }
 
-int irc_cmd_ping(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
+int
+irc_cmd_ping(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
 {
 	char *stamp;
 	char *buf;
@@ -415,7 +436,8 @@ int irc_cmd_ping(struct irc_conn *irc, const char *cmd, const char *target, cons
 	return 0;
 }
 
-int irc_cmd_privmsg(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
+int
+irc_cmd_privmsg(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
 {
 	int max_privmsg_arg_len;
 	const char *cur, *end;
@@ -442,7 +464,7 @@ int irc_cmd_privmsg(struct irc_conn *irc, const char *cmd, const char *target, c
 
 		msg = g_strndup(cur, end - cur);
 
-		if(purple_strequal(cmd, "notice"))
+		if (purple_strequal(cmd, "notice"))
 			buf = irc_format(irc, "vt:", "NOTICE", args[0], msg);
 		else
 			buf = irc_format(irc, "vt:", "PRIVMSG", args[0], msg);
@@ -460,7 +482,7 @@ int irc_cmd_privmsg(struct irc_conn *irc, const char *cmd, const char *target, c
 		g_free(msg);
 		g_free(buf);
 		cur = end;
-		if(*cur == '\n') {
+		if (*cur == '\n') {
 			cur++;
 		}
 	}
@@ -470,7 +492,8 @@ int irc_cmd_privmsg(struct irc_conn *irc, const char *cmd, const char *target, c
 	return 0;
 }
 
-int irc_cmd_quit(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
+int
+irc_cmd_quit(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
 {
 	char *buf;
 
@@ -493,7 +516,8 @@ int irc_cmd_quit(struct irc_conn *irc, const char *cmd, const char *target, cons
 	return 0;
 }
 
-int irc_cmd_quote(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
+int
+irc_cmd_quote(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
 {
 	char *buf;
 
@@ -507,7 +531,8 @@ int irc_cmd_quote(struct irc_conn *irc, const char *cmd, const char *target, con
 	return 0;
 }
 
-int irc_cmd_query(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
+int
+irc_cmd_query(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
 {
 	PurpleConversation *convo;
 	PurpleConnection *gc;
@@ -521,14 +546,14 @@ int irc_cmd_query(struct irc_conn *irc, const char *cmd, const char *target, con
 	if (args[1]) {
 		gc = purple_account_get_connection(irc->account);
 		irc_cmd_privmsg(irc, cmd, target, args);
-		purple_conv_im_write(PURPLE_CONV_IM(convo), purple_connection_get_display_name(gc),
-			      args[1], PURPLE_MESSAGE_SEND, time(NULL));
+		purple_conv_im_write(PURPLE_CONV_IM(convo), purple_connection_get_display_name(gc), args[1], PURPLE_MESSAGE_SEND, time(NULL));
 	}
 
 	return 0;
 }
 
-int irc_cmd_remove(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
+int
+irc_cmd_remove(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
 {
 	char *buf;
 
@@ -548,7 +573,8 @@ int irc_cmd_remove(struct irc_conn *irc, const char *cmd, const char *target, co
 	return 0;
 }
 
-int irc_cmd_service(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
+int
+irc_cmd_service(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
 {
 	char *capital_cmd, *buf;
 
@@ -565,7 +591,8 @@ int irc_cmd_service(struct irc_conn *irc, const char *cmd, const char *target, c
 	return 0;
 }
 
-int irc_cmd_time(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
+int
+irc_cmd_time(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
 {
 	char *buf;
 
@@ -576,7 +603,8 @@ int irc_cmd_time(struct irc_conn *irc, const char *cmd, const char *target, cons
 	return 0;
 }
 
-int irc_cmd_topic(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
+int
+irc_cmd_topic(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
 {
 	char *buf;
 	const char *topic;
@@ -590,7 +618,7 @@ int irc_cmd_topic(struct irc_conn *irc, const char *cmd, const char *target, con
 		return 0;
 
 	if (!args[0]) {
-		topic = purple_conv_chat_get_topic (PURPLE_CONV_CHAT(convo));
+		topic = purple_conv_chat_get_topic(PURPLE_CONV_CHAT(convo));
 
 		if (topic) {
 			char *tmp, *tmp2;
@@ -601,7 +629,7 @@ int irc_cmd_topic(struct irc_conn *irc, const char *cmd, const char *target, con
 			g_free(tmp2);
 		} else
 			buf = g_strdup(_("No topic is set"));
-		purple_conv_chat_write(PURPLE_CONV_CHAT(convo), target, buf, PURPLE_MESSAGE_SYSTEM|PURPLE_MESSAGE_NO_LOG, time(NULL));
+		purple_conv_chat_write(PURPLE_CONV_CHAT(convo), target, buf, PURPLE_MESSAGE_SYSTEM | PURPLE_MESSAGE_NO_LOG, time(NULL));
 		g_free(buf);
 
 		return 0;
@@ -614,7 +642,8 @@ int irc_cmd_topic(struct irc_conn *irc, const char *cmd, const char *target, con
 	return 0;
 }
 
-int irc_cmd_wallops(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
+int
+irc_cmd_wallops(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
 {
 	char *buf;
 
@@ -634,7 +663,8 @@ int irc_cmd_wallops(struct irc_conn *irc, const char *cmd, const char *target, c
 	return 0;
 }
 
-int irc_cmd_whois(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
+int
+irc_cmd_whois(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
 {
 	char *buf;
 
@@ -655,7 +685,8 @@ int irc_cmd_whois(struct irc_conn *irc, const char *cmd, const char *target, con
 	return 0;
 }
 
-int irc_cmd_whowas(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
+int
+irc_cmd_whowas(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
 {
 	char *buf;
 
@@ -671,7 +702,8 @@ int irc_cmd_whowas(struct irc_conn *irc, const char *cmd, const char *target, co
 	return 0;
 }
 
-static void irc_do_mode(struct irc_conn *irc, const char *target, const char *sign, char **ops)
+static void
+irc_do_mode(struct irc_conn *irc, const char *target, const char *sign, char **ops)
 {
 	char *buf, mode[5];
 	int i = 0;
@@ -681,16 +713,12 @@ static void irc_do_mode(struct irc_conn *irc, const char *target, const char *si
 
 	while (ops[i]) {
 		if (ops[i + 2] && ops[i + 4]) {
-			g_snprintf(mode, sizeof(mode), "%s%s%s%s", sign,
-				   ops[i], ops[i + 2], ops[i + 4]);
-			buf = irc_format(irc, "vcvnnn", "MODE", target, mode,
-					 ops[i + 1], ops[i + 3], ops[i + 5]);
+			g_snprintf(mode, sizeof(mode), "%s%s%s%s", sign, ops[i], ops[i + 2], ops[i + 4]);
+			buf = irc_format(irc, "vcvnnn", "MODE", target, mode, ops[i + 1], ops[i + 3], ops[i + 5]);
 			i += 6;
 		} else if (ops[i + 2]) {
-			g_snprintf(mode, sizeof(mode), "%s%s%s",
-				   sign, ops[i], ops[i + 2]);
-			buf = irc_format(irc, "vcvnn", "MODE", target, mode,
-					 ops[i + 1], ops[i + 3]);
+			g_snprintf(mode, sizeof(mode), "%s%s%s", sign, ops[i], ops[i + 2]);
+			buf = irc_format(irc, "vcvnn", "MODE", target, mode, ops[i + 1], ops[i + 3]);
 			i += 4;
 		} else {
 			g_snprintf(mode, sizeof(mode), "%s%s", sign, ops[i]);

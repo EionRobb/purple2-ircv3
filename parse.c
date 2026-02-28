@@ -22,19 +22,36 @@
 
 #include "irc.h"
 
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <ctype.h>
 
-static char *irc_send_convert(struct irc_conn *irc, const char *string);
-static char *irc_recv_convert(struct irc_conn *irc, const char *string);
+static char *
+irc_send_convert(struct irc_conn *irc, const char *string);
+static char *
+irc_recv_convert(struct irc_conn *irc, const char *string);
 
-static void irc_parse_error_cb(struct irc_conn *irc, char *input);
+static void
+irc_parse_error_cb(struct irc_conn *irc, char *input);
 
 static char *irc_mirc_colors[16] = {
-	"white", "black", "blue", "dark green", "red", "brown", "purple",
-		"orange", "yellow", "green", "teal", "cyan", "light blue",
-		"pink", "grey", "light grey" };
+	"white",
+	"black",
+	"blue",
+	"dark green",
+	"red",
+	"brown",
+	"purple",
+	"orange",
+	"yellow",
+	"green",
+	"teal",
+	"cyan",
+	"light blue",
+	"pink",
+	"grey",
+	"light grey"
+};
 
 extern PurplePlugin *_irc_plugin;
 
@@ -49,80 +66,80 @@ static struct _irc_msg {
 
 	void (*cb)(struct irc_conn *irc, const char *name, const char *from, char **args);
 } _irc_msgs[] = {
-	{ "005", "n*", 2, irc_msg_features },		/* Feature list			*/
-	{ "251", "n:", 1, irc_msg_luser },		/* Client & Server count	*/
-	{ "255", "n:", 1, irc_msg_luser },		/* Client & Server count Mk. II	*/
-	{ "301", "nn:", 3, irc_msg_away },		/* User is away			*/
-	{ "303", "n:", 2, irc_msg_ison },		/* ISON reply			*/
-	{ "311", "nnvvv:", 6, irc_msg_whois },		/* Whois user			*/
-	{ "312", "nnv:", 4, irc_msg_whois },		/* Whois server			*/
-	{ "313", "nn:", 2, irc_msg_whois },		/* Whois ircop			*/
-	{ "317", "nnvv", 3, irc_msg_whois },		/* Whois idle			*/
-	{ "318", "nt:", 2, irc_msg_endwhois },		/* End of WHOIS			*/
-	{ "319", "nn:", 3, irc_msg_whois },		/* Whois channels		*/
-	{ "320", "nn:", 2, irc_msg_whois },		/* Whois (fn ident)		*/
-	{ "330", "nnv:", 4, irc_msg_whois },		/* Whois (fn login)		*/
-	{ "314", "nnnvv:", 6, irc_msg_whois },		/* Whowas user			*/
-	{ "315", "nt:", 0, irc_msg_who },		/* end of WHO channel		*/
-	{ "369", "nt:", 2, irc_msg_endwhois },		/* End of WHOWAS		*/
-	{ "321", "*", 0, irc_msg_list },		/* Start of list		*/
-	{ "322", "ncv:", 4, irc_msg_list },		/* List.			*/
-	{ "323", ":", 0, irc_msg_list },		/* End of list.			*/
-	{ "324", "ncv:", 3, irc_msg_chanmode },		/* Channel modes		*/
-	{ "331", "nc:", 3, irc_msg_topic },		/* No channel topic		*/
-	{ "332", "nc:", 3, irc_msg_topic },		/* Channel topic		*/
-	{ "333", "ncvv", 4, irc_msg_topicinfo },	/* Topic setter stuff		*/
-	{ "352", "ncvvvnv:", 8, irc_msg_who },		/* Channel WHO			*/
-	{ "353", "nvc:", 4, irc_msg_names },		/* Names list			*/
-	{ "366", "nc:", 2, irc_msg_names },		/* End of names			*/
-	{ "367", "ncnnv", 3, irc_msg_ban },		/* Ban list			*/
-	{ "368", "nc:", 2, irc_msg_ban },		/* End of ban list		*/
-	{ "372", "n:", 1, irc_msg_motd },		/* MOTD				*/
-	{ "375", "n:", 1, irc_msg_motd },		/* Start MOTD			*/
-	{ "376", "n:", 1, irc_msg_motd },		/* End of MOTD			*/
-	{ "391", "nv:", 3, irc_msg_time },		/* Time reply			*/
-	{ "401", "nt:", 2, irc_msg_nonick },		/* No such nick/chan		*/
-	{ "406", "nt:", 2, irc_msg_nonick },		/* No such nick for WHOWAS	*/
-	{ "403", "nc:", 2, irc_msg_nochan },		/* No such channel		*/
-	{ "404", "nt:", 3, irc_msg_nosend },		/* Cannot send to chan		*/
-	{ "421", "nv:", 2, irc_msg_unknown },		/* Unknown command		*/
-	{ "422", "n:", 1, irc_msg_motd },		/* MOTD file missing		*/
-	{ "432", "vn:", 0, irc_msg_badnick },		/* Erroneous nickname		*/
-	{ "433", "vn:", 2, irc_msg_nickused },		/* Nickname already in use	*/
-	{ "437", "nc:", 2, irc_msg_unavailable },	/* Nick/channel is unavailable	*/
-	{ "438", "nn:", 3, irc_msg_nochangenick },	/* Nick may not change		*/
-	{ "442", "nc:", 3, irc_msg_notinchan },		/* Not in channel		*/
-	{ "473", "nc:", 2, irc_msg_inviteonly },	/* Tried to join invite-only	*/
-	{ "474", "nc:", 2, irc_msg_banned },		/* Banned from channel		*/
-	{ "477", "nc:", 3, irc_msg_regonly },		/* Registration Required	*/
-	{ "478", "nct:", 3, irc_msg_banfull },		/* Banlist is full		*/
-	{ "482", "nc:", 3, irc_msg_notop },		/* Need to be op to do that	*/
-	{ "501", "n:", 2, irc_msg_badmode },		/* Unknown mode flag		*/
-	{ "506", "nc:", 3, irc_msg_nosend },		/* Must identify to send	*/
-	{ "515", "nc:", 3, irc_msg_regonly },		/* Registration required	*/
-	{ "cap", "vv:", 3, irc_msg_cap },          /* Capabilities negotiation		*/
-	{ "tagmsg", "t*", 1, irc_msg_tagmsg },     /* Tagged message (IRCv3)	*/
+	{ "005", "n*", 2, irc_msg_features },	   /* Feature list			*/
+	{ "251", "n:", 1, irc_msg_luser },		   /* Client & Server count	*/
+	{ "255", "n:", 1, irc_msg_luser },		   /* Client & Server count Mk. II	*/
+	{ "301", "nn:", 3, irc_msg_away },		   /* User is away			*/
+	{ "303", "n:", 2, irc_msg_ison },		   /* ISON reply			*/
+	{ "311", "nnvvv:", 6, irc_msg_whois },	   /* Whois user			*/
+	{ "312", "nnv:", 4, irc_msg_whois },	   /* Whois server			*/
+	{ "313", "nn:", 2, irc_msg_whois },		   /* Whois ircop			*/
+	{ "317", "nnvv", 3, irc_msg_whois },	   /* Whois idle			*/
+	{ "318", "nt:", 2, irc_msg_endwhois },	   /* End of WHOIS			*/
+	{ "319", "nn:", 3, irc_msg_whois },		   /* Whois channels		*/
+	{ "320", "nn:", 2, irc_msg_whois },		   /* Whois (fn ident)		*/
+	{ "330", "nnv:", 4, irc_msg_whois },	   /* Whois (fn login)		*/
+	{ "314", "nnnvv:", 6, irc_msg_whois },	   /* Whowas user			*/
+	{ "315", "nt:", 0, irc_msg_who },		   /* end of WHO channel		*/
+	{ "369", "nt:", 2, irc_msg_endwhois },	   /* End of WHOWAS		*/
+	{ "321", "*", 0, irc_msg_list },		   /* Start of list		*/
+	{ "322", "ncv:", 4, irc_msg_list },		   /* List.			*/
+	{ "323", ":", 0, irc_msg_list },		   /* End of list.			*/
+	{ "324", "ncv:", 3, irc_msg_chanmode },	   /* Channel modes		*/
+	{ "331", "nc:", 3, irc_msg_topic },		   /* No channel topic		*/
+	{ "332", "nc:", 3, irc_msg_topic },		   /* Channel topic		*/
+	{ "333", "ncvv", 4, irc_msg_topicinfo },   /* Topic setter stuff		*/
+	{ "352", "ncvvvnv:", 8, irc_msg_who },	   /* Channel WHO			*/
+	{ "353", "nvc:", 4, irc_msg_names },	   /* Names list			*/
+	{ "366", "nc:", 2, irc_msg_names },		   /* End of names			*/
+	{ "367", "ncnnv", 3, irc_msg_ban },		   /* Ban list			*/
+	{ "368", "nc:", 2, irc_msg_ban },		   /* End of ban list		*/
+	{ "372", "n:", 1, irc_msg_motd },		   /* MOTD				*/
+	{ "375", "n:", 1, irc_msg_motd },		   /* Start MOTD			*/
+	{ "376", "n:", 1, irc_msg_motd },		   /* End of MOTD			*/
+	{ "391", "nv:", 3, irc_msg_time },		   /* Time reply			*/
+	{ "401", "nt:", 2, irc_msg_nonick },	   /* No such nick/chan		*/
+	{ "406", "nt:", 2, irc_msg_nonick },	   /* No such nick for WHOWAS	*/
+	{ "403", "nc:", 2, irc_msg_nochan },	   /* No such channel		*/
+	{ "404", "nt:", 3, irc_msg_nosend },	   /* Cannot send to chan		*/
+	{ "421", "nv:", 2, irc_msg_unknown },	   /* Unknown command		*/
+	{ "422", "n:", 1, irc_msg_motd },		   /* MOTD file missing		*/
+	{ "432", "vn:", 0, irc_msg_badnick },	   /* Erroneous nickname		*/
+	{ "433", "vn:", 2, irc_msg_nickused },	   /* Nickname already in use	*/
+	{ "437", "nc:", 2, irc_msg_unavailable },  /* Nick/channel is unavailable	*/
+	{ "438", "nn:", 3, irc_msg_nochangenick }, /* Nick may not change		*/
+	{ "442", "nc:", 3, irc_msg_notinchan },	   /* Not in channel		*/
+	{ "473", "nc:", 2, irc_msg_inviteonly },   /* Tried to join invite-only	*/
+	{ "474", "nc:", 2, irc_msg_banned },	   /* Banned from channel		*/
+	{ "477", "nc:", 3, irc_msg_regonly },	   /* Registration Required	*/
+	{ "478", "nct:", 3, irc_msg_banfull },	   /* Banlist is full		*/
+	{ "482", "nc:", 3, irc_msg_notop },		   /* Need to be op to do that	*/
+	{ "501", "n:", 2, irc_msg_badmode },	   /* Unknown mode flag		*/
+	{ "506", "nc:", 3, irc_msg_nosend },	   /* Must identify to send	*/
+	{ "515", "nc:", 3, irc_msg_regonly },	   /* Registration required	*/
+	{ "cap", "vv:", 3, irc_msg_cap },		   /* Capabilities negotiation		*/
+	{ "tagmsg", "t*", 1, irc_msg_tagmsg },	   /* Tagged message (IRCv3)	*/
 #ifdef HAVE_CYRUS_SASL
-	{ "903", "*", 0, irc_msg_authok},		/* SASL auth successful		*/
-	{ "904", "*", 0, irc_msg_authtryagain },	/* SASL auth failed, can recover*/
-	{ "905", "*", 0, irc_msg_authfail },		/* SASL auth failed		*/
-	{ "906", "*", 0, irc_msg_authfail },		/* SASL auth failed		*/
-	{ "907", "*", 0, irc_msg_authfail },		/* SASL auth failed		*/
+	{ "903", "*", 0, irc_msg_authok },				  /* SASL auth successful		*/
+	{ "904", "*", 0, irc_msg_authtryagain },		  /* SASL auth failed, can recover*/
+	{ "905", "*", 0, irc_msg_authfail },			  /* SASL auth failed		*/
+	{ "906", "*", 0, irc_msg_authfail },			  /* SASL auth failed		*/
+	{ "907", "*", 0, irc_msg_authfail },			  /* SASL auth failed		*/
 	{ "authenticate", ":", 1, irc_msg_authenticate }, /* SASL authenticate		*/
 #endif
-	{ "invite", "n:", 2, irc_msg_invite },		/* Invited			*/
-	{ "join", ":", 1, irc_msg_join },		/* Joined a channel		*/
-	{ "kick", "cn:", 3, irc_msg_kick },		/* KICK				*/
-	{ "mode", "tv:", 2, irc_msg_mode },		/* MODE for channel		*/
-	{ "nick", ":", 1, irc_msg_nick },		/* Nick change			*/
-	{ "notice", "t:", 2, irc_msg_notice },		/* NOTICE recv			*/
-	{ "part", "c:", 1, irc_msg_part },		/* Parted a channel		*/
-	{ "ping", ":", 1, irc_msg_ping },		/* Received PING from server	*/
-	{ "pong", "v:", 2, irc_msg_pong },		/* Received PONG from server	*/
-	{ "privmsg", "t:", 2, irc_msg_privmsg },	/* Received private message	*/
-	{ "topic", "c:", 2, irc_msg_topic },		/* TOPIC command		*/
-	{ "quit", ":", 1, irc_msg_quit },		/* QUIT notice			*/
-	{ "wallops", ":", 1, irc_msg_wallops },		/* WALLOPS command		*/
+	{ "invite", "n:", 2, irc_msg_invite },	 /* Invited			*/
+	{ "join", ":", 1, irc_msg_join },		 /* Joined a channel		*/
+	{ "kick", "cn:", 3, irc_msg_kick },		 /* KICK				*/
+	{ "mode", "tv:", 2, irc_msg_mode },		 /* MODE for channel		*/
+	{ "nick", ":", 1, irc_msg_nick },		 /* Nick change			*/
+	{ "notice", "t:", 2, irc_msg_notice },	 /* NOTICE recv			*/
+	{ "part", "c:", 1, irc_msg_part },		 /* Parted a channel		*/
+	{ "ping", ":", 1, irc_msg_ping },		 /* Received PING from server	*/
+	{ "pong", "v:", 2, irc_msg_pong },		 /* Received PONG from server	*/
+	{ "privmsg", "t:", 2, irc_msg_privmsg }, /* Received private message	*/
+	{ "topic", "c:", 2, irc_msg_topic },	 /* TOPIC command		*/
+	{ "quit", ":", 1, irc_msg_quit },		 /* QUIT notice			*/
+	{ "wallops", ":", 1, irc_msg_wallops },	 /* WALLOPS command		*/
 	{ NULL, NULL, 0, NULL }
 };
 
@@ -172,8 +189,8 @@ static struct _irc_user_cmd {
 	{ NULL, NULL, NULL, NULL }
 };
 
-static PurpleCmdRet irc_parse_purple_cmd(PurpleConversation *conv, const gchar *cmd,
-                                        gchar **args, gchar **error, void *data)
+static PurpleCmdRet
+irc_parse_purple_cmd(PurpleConversation *conv, const gchar *cmd, gchar **args, gchar **error, void *data)
 {
 	PurpleConnection *gc;
 	struct irc_conn *irc;
@@ -188,20 +205,20 @@ static PurpleCmdRet irc_parse_purple_cmd(PurpleConversation *conv, const gchar *
 	if ((cmdent = g_hash_table_lookup(irc->cmds, cmd)) == NULL)
 		return PURPLE_CMD_RET_FAILED;
 
-	(cmdent->cb)(irc, cmd, purple_conversation_get_name(conv), (const char **)args);
+	(cmdent->cb)(irc, cmd, purple_conversation_get_name(conv), (const char **) args);
 
 	return PURPLE_CMD_RET_OK;
 }
 
-static void irc_register_command(struct _irc_user_cmd *c)
+static void
+irc_register_command(struct _irc_user_cmd *c)
 {
 	PurpleCmdFlag f;
 	char args[10];
 	char *format;
 	size_t i;
 
-	f = PURPLE_CMD_FLAG_CHAT | PURPLE_CMD_FLAG_IM | PURPLE_CMD_FLAG_PRPL_ONLY
-	    | PURPLE_CMD_FLAG_ALLOW_WRONG_ARGS;
+	f = PURPLE_CMD_FLAG_CHAT | PURPLE_CMD_FLAG_IM | PURPLE_CMD_FLAG_PRPL_ONLY | PURPLE_CMD_FLAG_ALLOW_WRONG_ARGS;
 
 	format = c->format;
 
@@ -221,11 +238,11 @@ static void irc_register_command(struct _irc_user_cmd *c)
 
 	args[i] = '\0';
 
-	purple_cmd_register(c->name, args, PURPLE_CMD_P_PRPL, f, PLUGIN_ID,
-	                  irc_parse_purple_cmd, _(c->help), NULL);
+	purple_cmd_register(c->name, args, PURPLE_CMD_P_PRPL, f, PLUGIN_ID, irc_parse_purple_cmd, _(c->help), NULL);
 }
 
-void irc_register_commands(void)
+void
+irc_register_commands(void)
 {
 	struct _irc_user_cmd *c;
 
@@ -233,7 +250,8 @@ void irc_register_commands(void)
 		irc_register_command(c);
 }
 
-static char *irc_send_convert(struct irc_conn *irc, const char *string)
+static char *
+irc_send_convert(struct irc_conn *irc, const char *string)
 {
 	char *utf8;
 	GError *err = NULL;
@@ -260,7 +278,8 @@ static char *irc_send_convert(struct irc_conn *irc, const char *string)
 	return utf8;
 }
 
-static char *irc_recv_convert(struct irc_conn *irc, const char *string)
+static char *
+irc_recv_convert(struct irc_conn *irc, const char *string)
 {
 	char *utf8 = NULL;
 	const gchar *charset, *enclist;
@@ -307,34 +326,35 @@ static char *irc_recv_convert(struct irc_conn *irc, const char *string)
 /* This function is shamelessly stolen from glib--it is an old version of the
  * private function append_escaped_text, used by g_markup_escape_text, whose
  * behavior changed in glib 2.12. */
-static void irc_append_escaped_text(GString *str, const char *text, gssize length)
+static void
+irc_append_escaped_text(GString *str, const char *text, gssize length)
 {
 	const char *p = text;
 	const char *end = text + length;
 	const char *next = NULL;
 
-	while(p != end) {
+	while (p != end) {
 		next = g_utf8_next_char(p);
 
-		switch(*p) {
-			case '&':
-				g_string_append(str, "&amp;");
-				break;
-			case '<':
-				g_string_append(str, "&lt;");
-				break;
-			case '>':
-				g_string_append(str, "&gt;");
-				break;
-			case '\'':
-				g_string_append(str, "&apos;");
-				break;
-			case '"':
-				g_string_append(str, "&quot;");
-				break;
-			default:
-				g_string_append_len(str, p, next - p);
-				break;
+		switch (*p) {
+		case '&':
+			g_string_append(str, "&amp;");
+			break;
+		case '<':
+			g_string_append(str, "&lt;");
+			break;
+		case '>':
+			g_string_append(str, "&gt;");
+			break;
+		case '\'':
+			g_string_append(str, "&apos;");
+			break;
+		case '"':
+			g_string_append(str, "&quot;");
+			break;
+		default:
+			g_string_append_len(str, p, next - p);
+			break;
 		}
 
 		p = next;
@@ -343,13 +363,14 @@ static void irc_append_escaped_text(GString *str, const char *text, gssize lengt
 
 /* This function is shamelessly stolen from glib--it is an old version of the
  * function g_markup_escape_text, whose behavior changed in glib 2.12. */
-char *irc_escape_privmsg(const char *text, gssize length)
+char *
+irc_escape_privmsg(const char *text, gssize length)
 {
 	GString *str;
 
 	g_return_val_if_fail(text != NULL, NULL);
 
-	if(length < 0)
+	if (length < 0)
 		length = strlen(text);
 
 	str = g_string_sized_new(length);
@@ -367,7 +388,8 @@ char *irc_escape_privmsg(const char *text, gssize length)
  *     and are not cleanly nested).  This is imminently fixable but
  *     I am not fixing it right now.
  */
-char *irc_mirc2html(const char *string)
+char *
+irc_mirc2html(const char *string)
 {
 	const char *cur, *end;
 	char fg[3] = "\0\0", bg[3] = "\0\0";
@@ -384,7 +406,7 @@ char *irc_mirc2html(const char *string)
 	do {
 		end = strpbrk(cur, "\002\003\007\017\026\037");
 
-		decoded = g_string_append_len(decoded, cur, (end ? (gssize)(end - cur) : (gssize)strlen(cur)));
+		decoded = g_string_append_len(decoded, cur, (end ? (gssize) (end - cur) : (gssize) strlen(cur)));
 		cur = end ? end : cur + strlen(cur);
 
 		switch (*cur) {
@@ -477,7 +499,8 @@ char *irc_mirc2html(const char *string)
 	return g_string_free(decoded, FALSE);
 }
 
-char *irc_mirc2txt (const char *string)
+char *
+irc_mirc2txt(const char *string)
 {
 	char *result;
 	int i, j;
@@ -485,7 +508,7 @@ char *irc_mirc2txt (const char *string)
 	if (string == NULL)
 		return NULL;
 
-	result = g_strdup (string);
+	result = g_strdup(string);
 
 	for (i = 0, j = 0; result[i]; i++) {
 		switch (result[i]) {
@@ -520,7 +543,8 @@ char *irc_mirc2txt (const char *string)
 	return result;
 }
 
-const char *irc_nick_skip_mode(struct irc_conn *irc, const char *nick)
+const char *
+irc_nick_skip_mode(struct irc_conn *irc, const char *nick)
 {
 	static const char *default_modes = "@+%&";
 	const char *mode_chars;
@@ -533,12 +557,14 @@ const char *irc_nick_skip_mode(struct irc_conn *irc, const char *nick)
 	return nick;
 }
 
-gboolean irc_ischannel(const char *string)
+gboolean
+irc_ischannel(const char *string)
 {
 	return (string[0] == '#' || string[0] == '&');
 }
 
-char *irc_parse_ctcp(struct irc_conn *irc, const char *from, const char *to, const char *msg, int notice)
+char *
+irc_parse_ctcp(struct irc_conn *irc, const char *from, const char *to, const char *msg, int notice)
 {
 	PurpleConnection *gc;
 	const char *cur = msg + 1;
@@ -591,7 +617,8 @@ char *irc_parse_ctcp(struct irc_conn *irc, const char *from, const char *to, con
 	return buf;
 }
 
-void irc_msg_table_build(struct irc_conn *irc)
+void
+irc_msg_table_build(struct irc_conn *irc)
 {
 	int i;
 
@@ -601,11 +628,12 @@ void irc_msg_table_build(struct irc_conn *irc)
 	}
 
 	for (i = 0; _irc_msgs[i].name; i++) {
-		g_hash_table_insert(irc->msgs, (gpointer)_irc_msgs[i].name, (gpointer)&_irc_msgs[i]);
+		g_hash_table_insert(irc->msgs, (gpointer) _irc_msgs[i].name, (gpointer) &_irc_msgs[i]);
 	}
 }
 
-void irc_cmd_table_build(struct irc_conn *irc)
+void
+irc_cmd_table_build(struct irc_conn *irc)
 {
 	int i;
 
@@ -614,12 +642,13 @@ void irc_cmd_table_build(struct irc_conn *irc)
 		return;
 	}
 
-	for (i = 0; _irc_cmds[i].name ; i++) {
-		g_hash_table_insert(irc->cmds, (gpointer)_irc_cmds[i].name, (gpointer)&_irc_cmds[i]);
+	for (i = 0; _irc_cmds[i].name; i++) {
+		g_hash_table_insert(irc->cmds, (gpointer) _irc_cmds[i].name, (gpointer) &_irc_cmds[i]);
 	}
 }
 
-char *irc_format(struct irc_conn *irc, const char *format, ...)
+char *
+irc_format(struct irc_conn *irc, const char *format, ...)
 {
 	GString *string = g_string_new("");
 	char *tok, *tmp;
@@ -656,7 +685,8 @@ char *irc_format(struct irc_conn *irc, const char *format, ...)
 	return (g_string_free(string, FALSE));
 }
 
-void irc_parse_msg(struct irc_conn *irc, char *input)
+void
+irc_parse_msg(struct irc_conn *irc, char *input)
 {
 	struct _irc_msg *msgent;
 	char *cur, *end, *tmp, *from, *msgname, *fmt, **args, *msg;
@@ -689,13 +719,14 @@ void irc_parse_msg(struct irc_conn *irc, char *input)
 	} else if (!strncmp(input, "ERROR ", 6)) {
 		if (g_utf8_validate(input, -1, NULL)) {
 			char *tmp = g_strdup_printf("%s\n%s", _("Disconnected."), input);
-			purple_connection_error_reason (gc,
-				PURPLE_CONNECTION_ERROR_NETWORK_ERROR, tmp);
+			purple_connection_error_reason(gc,
+										   PURPLE_CONNECTION_ERROR_NETWORK_ERROR,
+										   tmp);
 			g_free(tmp);
 		} else
-			purple_connection_error_reason (gc,
-				PURPLE_CONNECTION_ERROR_NETWORK_ERROR,
-				_("Disconnected."));
+			purple_connection_error_reason(gc,
+										   PURPLE_CONNECTION_ERROR_NETWORK_ERROR,
+										   _("Disconnected."));
 		return;
 #ifdef HAVE_CYRUS_SASL
 	} else if (!strncmp(input, "AUTHENTICATE ", 13)) {
@@ -751,7 +782,8 @@ void irc_parse_msg(struct irc_conn *irc, char *input)
 	for (cur = end, fmt = msgent->format, i = 0; fmt[i] && *cur++; i++) {
 		switch (fmt[i]) {
 		case 'v':
-			if (!(end = strchr(cur, ' '))) end = cur + strlen(cur);
+			if (!(end = strchr(cur, ' ')))
+				end = cur + strlen(cur);
 			/* This is a string of unknown encoding which we do not
 			 * want to transcode, but it may or may not be valid
 			 * UTF-8, so we'll salvage it.  If a nick/channel/target
@@ -765,14 +797,16 @@ void irc_parse_msg(struct irc_conn *irc, char *input)
 		case 't':
 		case 'n':
 		case 'c':
-			if (!(end = strchr(cur, ' '))) end = cur + strlen(cur);
+			if (!(end = strchr(cur, ' ')))
+				end = cur + strlen(cur);
 			tmp = g_strndup(cur, end - cur);
 			args[i] = irc_recv_convert(irc, tmp);
 			g_free(tmp);
 			cur += end - cur;
 			break;
 		case ':':
-			if (*cur == ':') cur++;
+			if (*cur == ':')
+				cur++;
 			args[i] = irc_recv_convert(irc, cur);
 			cur = cur + strlen(cur);
 			break;
@@ -798,8 +832,10 @@ void irc_parse_msg(struct irc_conn *irc, char *input)
 		g_free(tmp);
 	} else {
 		purple_debug_error("irc", "args count (%d) doesn't reach "
-			"expected value of %d for the '%s' command",
-			args_cnt, msgent->req_cnt, msgent->name);
+								  "expected value of %d for the '%s' command",
+						   args_cnt,
+						   msgent->req_cnt,
+						   msgent->name);
 	}
 	for (i = 0; i < strlen(msgent->format); i++) {
 		g_free(args[i]);
@@ -808,7 +844,8 @@ void irc_parse_msg(struct irc_conn *irc, char *input)
 	g_free(from);
 }
 
-static void irc_parse_error_cb(struct irc_conn *irc, char *input)
+static void
+irc_parse_error_cb(struct irc_conn *irc, char *input)
 {
 	char *clean;
 	/* This really should be escaped somehow that you can tell what

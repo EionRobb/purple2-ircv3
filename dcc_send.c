@@ -31,7 +31,8 @@ struct irc_xfer_rx_data {
 	gchar *ip;
 };
 
-static void irc_dccsend_recv_destroy(PurpleXfer *xfer)
+static void
+irc_dccsend_recv_destroy(PurpleXfer *xfer)
 {
 	struct irc_xfer_rx_data *xd = xfer->data;
 
@@ -44,7 +45,9 @@ static void irc_dccsend_recv_destroy(PurpleXfer *xfer)
  * It sends the acknowledgement (in the form of a total byte count as an
  * unsigned 4 byte integer in network byte order)
  */
-static void irc_dccsend_recv_ack(PurpleXfer *xfer, const guchar *data, size_t size) {
+static void
+irc_dccsend_recv_ack(PurpleXfer *xfer, const guchar *data, size_t size)
+{
 	guint32 l;
 	size_t result;
 
@@ -56,7 +59,9 @@ static void irc_dccsend_recv_ack(PurpleXfer *xfer, const guchar *data, size_t si
 	}
 }
 
-static gssize irc_dccsend_recv_read(guchar **buffer, PurpleXfer *xfer) {
+static gssize
+irc_dccsend_recv_read(guchar **buffer, PurpleXfer *xfer)
+{
 	gssize s, r;
 
 	if (purple_xfer_get_size(xfer) == 0) {
@@ -76,7 +81,7 @@ static gssize irc_dccsend_recv_read(guchar **buffer, PurpleXfer *xfer) {
 		r = -1;
 	} else if (r == 0) {
 		/* read() signals that there is no more data to get from the socket */
-		if(purple_xfer_get_bytes_sent(xfer) >= purple_xfer_get_size(xfer)) {
+		if (purple_xfer_get_bytes_sent(xfer) >= purple_xfer_get_size(xfer)) {
 			/* We got all the data, xfer successful */
 			purple_xfer_set_completed(xfer, TRUE);
 		} else {
@@ -88,7 +93,9 @@ static gssize irc_dccsend_recv_read(guchar **buffer, PurpleXfer *xfer) {
 	return r;
 }
 
-static void irc_dccsend_recv_init(PurpleXfer *xfer) {
+static void
+irc_dccsend_recv_init(PurpleXfer *xfer)
+{
 	struct irc_xfer_rx_data *xd = xfer->data;
 
 	purple_xfer_start(xfer, -1, xd->ip, xfer->remote_port);
@@ -97,7 +104,9 @@ static void irc_dccsend_recv_init(PurpleXfer *xfer) {
 }
 
 /* This function makes the necessary arrangements for receiving files */
-void irc_dccsend_recv(struct irc_conn *irc, const char *from, const char *msg) {
+void
+irc_dccsend_recv(struct irc_conn *irc, const char *from, const char *msg)
+{
 	PurpleXfer *xfer;
 	struct irc_xfer_rx_data *xd;
 	gchar **token;
@@ -130,7 +139,7 @@ void irc_dccsend_recv(struct irc_conn *irc, const char *from, const char *msg) {
 		g_string_append(filename, token[0]);
 	}
 
-	if (!token[i] || !token[i+1] || !token[i+2]) {
+	if (!token[i] || !token[i + 1] || !token[i + 2]) {
 		g_strfreev(token);
 		g_string_free(filename, TRUE);
 		return;
@@ -138,13 +147,12 @@ void irc_dccsend_recv(struct irc_conn *irc, const char *from, const char *msg) {
 	i++;
 
 	xfer = purple_xfer_new(irc->account, PURPLE_XFER_RECEIVE, from);
-	if (xfer)
-	{
+	if (xfer) {
 		xd = g_new0(struct irc_xfer_rx_data, 1);
 		xfer->data = xd;
 
 		purple_xfer_set_filename(xfer, filename->str);
-		xfer->remote_port = atoi(token[i+1]);
+		xfer->remote_port = atoi(token[i + 1]);
 
 		nip = strtoul(token[i], NULL, 10);
 		if (nip) {
@@ -153,9 +161,8 @@ void irc_dccsend_recv(struct irc_conn *irc, const char *from, const char *msg) {
 		} else {
 			xd->ip = g_strdup(token[i]);
 		}
-		purple_debug(PURPLE_DEBUG_INFO, "irc", "Receiving file (%s) from %s\n",
-			     filename->str, xd->ip);
-		purple_xfer_set_size(xfer, token[i+2] ? atoi(token[i+2]) : 0);
+		purple_debug(PURPLE_DEBUG_INFO, "irc", "Receiving file (%s) from %s\n", filename->str, xd->ip);
+		purple_xfer_set_size(xfer, token[i + 2] ? atoi(token[i + 2]) : 0);
 
 		purple_xfer_set_init_fnc(xfer, irc_dccsend_recv_init);
 		purple_xfer_set_ack_fnc(xfer, irc_dccsend_recv_ack);
@@ -183,7 +190,8 @@ struct irc_xfer_send_data {
 	guint rxlen;
 };
 
-static void irc_dccsend_send_destroy(PurpleXfer *xfer)
+static void
+irc_dccsend_send_destroy(PurpleXfer *xfer)
 {
 	struct irc_xfer_send_data *xd = xfer->data;
 
@@ -203,7 +211,8 @@ static void irc_dccsend_send_destroy(PurpleXfer *xfer)
 }
 
 /* just in case you were wondering, this is why DCC is gay */
-static void irc_dccsend_send_read(gpointer data, int source, PurpleInputCondition cond)
+static void
+irc_dccsend_send_read(gpointer data, int source, PurpleInputCondition cond)
 {
 	PurpleXfer *xfer = data;
 	struct irc_xfer_send_data *xd = xfer->data;
@@ -231,7 +240,7 @@ static void irc_dccsend_send_read(gpointer data, int source, PurpleInputConditio
 		if (xd->rxlen < 4)
 			break;
 
-		acked = ntohl(*((gint32 *)xd->rxqueue));
+		acked = ntohl(*((gint32 *) xd->rxqueue));
 
 		xd->rxlen -= 4;
 		if (xd->rxlen) {
@@ -253,7 +262,8 @@ static void irc_dccsend_send_read(gpointer data, int source, PurpleInputConditio
 	}
 }
 
-static gssize irc_dccsend_send_write(const guchar *buffer, size_t size, PurpleXfer *xfer)
+static gssize
+irc_dccsend_send_write(const guchar *buffer, size_t size, PurpleXfer *xfer)
 {
 	gssize s;
 	int ret;
@@ -282,14 +292,14 @@ _purple_network_set_common_socket_flags(int fd)
 
 	if (fcntl(fd, F_SETFL, flags | O_NONBLOCK) != 0) {
 		purple_debug_warning("network",
-			"Couldn't set O_NONBLOCK flag\n");
+							 "Couldn't set O_NONBLOCK flag\n");
 		succ = FALSE;
 	}
 
 #ifndef _WIN32
 	if (fcntl(fd, F_SETFD, FD_CLOEXEC) != 0) {
 		purple_debug_warning("network",
-			"Couldn't set FD_CLOEXEC flag\n");
+							 "Couldn't set FD_CLOEXEC flag\n");
 		succ = FALSE;
 	}
 #endif
@@ -297,7 +307,9 @@ _purple_network_set_common_socket_flags(int fd)
 	return succ;
 }
 
-static void irc_dccsend_send_connected(gpointer data, int source, PurpleInputCondition cond) {
+static void
+irc_dccsend_send_connected(gpointer data, int source, PurpleInputCondition cond)
+{
 	PurpleXfer *xfer = (PurpleXfer *) data;
 	struct irc_xfer_send_data *xd = xfer->data;
 	int conn;
@@ -339,8 +351,7 @@ irc_dccsend_network_listen_cb(int sock, gpointer data)
 	xd = xfer->data;
 	xd->listen_data = NULL;
 
-	if (purple_xfer_get_status(xfer) == PURPLE_XFER_STATUS_CANCEL_LOCAL
-			|| purple_xfer_get_status(xfer) == PURPLE_XFER_STATUS_CANCEL_REMOTE) {
+	if (purple_xfer_get_status(xfer) == PURPLE_XFER_STATUS_CANCEL_LOCAL || purple_xfer_get_status(xfer) == PURPLE_XFER_STATUS_CANCEL_REMOTE) {
 		purple_xfer_unref(xfer);
 		return;
 	}
@@ -352,8 +363,7 @@ irc_dccsend_network_listen_cb(int sock, gpointer data)
 	purple_xfer_unref(xfer);
 
 	if (sock < 0) {
-		purple_notify_error(gc, NULL, _("File Transfer Failed"),
-		                    _("Unable to open a listening port."));
+		purple_notify_error(gc, NULL, _("File Transfer Failed"), _("Unable to open a listening port."));
 		purple_xfer_cancel_local(xfer);
 		return;
 	}
@@ -363,15 +373,16 @@ irc_dccsend_network_listen_cb(int sock, gpointer data)
 	port = purple_network_get_port_from_fd(sock);
 	purple_debug_misc("irc", "port is %hu\n", port);
 	/* Monitor the listening socket */
-	xfer->watcher = purple_input_add(sock, PURPLE_INPUT_READ,
-	                                 irc_dccsend_send_connected, xfer);
+	xfer->watcher = purple_input_add(sock, PURPLE_INPUT_READ, irc_dccsend_send_connected, xfer);
 
 	/* Send the intended recipient the DCC request */
 	arg[0] = xfer->who;
 	inet_aton(purple_network_get_my_ip(irc->fd), &addr);
 	arg[1] = tmp = g_strdup_printf("\001DCC SEND \"%s\" %u %hu %" G_GSIZE_FORMAT "\001",
-	                               xfer->filename, ntohl(addr.s_addr),
-	                               port, xfer->size);
+								   xfer->filename,
+								   ntohl(addr.s_addr),
+								   port,
+								   xfer->size);
 
 	irc_cmd_privmsg(gc->proto_data, "msg", NULL, arg);
 	g_free(tmp);
@@ -380,7 +391,9 @@ irc_dccsend_network_listen_cb(int sock, gpointer data)
 /*
  * This function is called after the user has selected a file to send.
  */
-static void irc_dccsend_send_init(PurpleXfer *xfer) {
+static void
+irc_dccsend_send_init(PurpleXfer *xfer)
+{
 	PurpleConnection *gc = purple_account_get_connection(purple_xfer_get_account(xfer));
 	struct irc_xfer_send_data *xd = xfer->data;
 
@@ -389,25 +402,23 @@ static void irc_dccsend_send_init(PurpleXfer *xfer) {
 	purple_xfer_ref(xfer);
 
 	/* Create a listening socket */
-	xd->listen_data = purple_network_listen_range(0, 0, SOCK_STREAM,
-			irc_dccsend_network_listen_cb, xfer);
+	xd->listen_data = purple_network_listen_range(0, 0, SOCK_STREAM, irc_dccsend_network_listen_cb, xfer);
 	if (xd->listen_data == NULL) {
 		purple_xfer_unref(xfer);
-		purple_notify_error(gc, NULL, _("File Transfer Failed"),
-		                    _("Unable to open a listening port."));
+		purple_notify_error(gc, NULL, _("File Transfer Failed"), _("Unable to open a listening port."));
 		purple_xfer_cancel_local(xfer);
 	}
-
 }
 
-PurpleXfer *irc_dccsend_new_xfer(PurpleConnection *gc, const char *who) {
+PurpleXfer *
+irc_dccsend_new_xfer(PurpleConnection *gc, const char *who)
+{
 	PurpleXfer *xfer;
 	struct irc_xfer_send_data *xd;
 
 	/* Build the file transfer handle */
 	xfer = purple_xfer_new(purple_connection_get_account(gc), PURPLE_XFER_SEND, who);
-	if (xfer)
-	{
+	if (xfer) {
 		xd = g_new0(struct irc_xfer_send_data, 1);
 		xd->fd = -1;
 		xfer->data = xd;
@@ -428,7 +439,9 @@ PurpleXfer *irc_dccsend_new_xfer(PurpleConnection *gc, const char *who) {
  * buddy menu
  * It sets up the PurpleXfer struct and tells Purple to go ahead
  */
-void irc_dccsend_send_file(PurpleConnection *gc, const char *who, const char *file) {
+void
+irc_dccsend_send_file(PurpleConnection *gc, const char *who, const char *file)
+{
 	PurpleXfer *xfer = irc_dccsend_new_xfer(gc, who);
 
 	/* Perform the request */
