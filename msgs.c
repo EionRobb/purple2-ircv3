@@ -26,13 +26,6 @@
  * possible for a malicious server or man-in-the-middle to trigger a crash.
  */
 
-#include "internal.h"
-
-#include "conversation.h"
-#include "blist.h"
-#include "notify.h"
-#include "util.h"
-#include "debug.h"
 #include "irc.h"
 
 #include <stdio.h>
@@ -149,8 +142,9 @@ void irc_msg_default(struct irc_conn *irc, const char *name, const char *from, c
 		/* Check for 3-digit numeric in second position */
 		if (i == 1) {
 			if (end - cur != 3
-			    || !isdigit(cur[0]) || !isdigit(cur[1])
-			    || !isdigit(cur[2])) {
+			    || !g_ascii_isdigit(cur[0]) 
+				|| !g_ascii_isdigit(cur[1])
+			    || !g_ascii_isdigit(cur[2])) {
 				goto undirected;
 			}
 			/* Save the numeric for printing to the channel */

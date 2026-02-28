@@ -20,13 +20,6 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02111-1301  USA
  */
 
-#include "internal.h"
-
-#include "conversation.h"
-#include "debug.h"
-#include "notify.h"
-#include "util.h"
-
 #include "irc.h"
 
 

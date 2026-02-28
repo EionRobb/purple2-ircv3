@@ -23,20 +23,8 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02111-1301  USA
  */
 
-#include "internal.h"
-
-#include "accountopt.h"
-#include "blist.h"
-#include "conversation.h"
-#include "debug.h"
-#include "glibcompat.h"
-#include "notify.h"
-#include "prpl.h"
-#include "plugin.h"
-#include "util.h"
-#include "version.h"
-
 #include "irc.h"
+#include <time.h>
 
 #define PING_TIMEOUT 60
 
@@ -1056,16 +1044,13 @@ static PurplePluginProtocolInfo prpl_info =
 	NULL,                   /* get_attention_types */
 	sizeof(PurplePluginProtocolInfo),    /* struct_size */
 	NULL,                    /* get_account_text_table */
-	NULL,                    /* initiate_media */
+	NULL,					 /* initiate_media */
 	NULL,					 /* get_media_caps */
 	NULL,					 /* get_moods */
 	NULL,					 /* set_public_alias */
 	NULL,					 /* get_public_alias */
 	NULL,					 /* add_buddy_with_invite */
-	NULL,					 /* add_buddies_with_invite */
-	NULL,					 /* get_cb_alias */
-	NULL,					 /* chat_can_receive_file */
-	NULL,					 /* chat_send_file */
+	NULL					 /* add_buddies_with_invite */
 };
 
 static gboolean load_plugin (PurplePlugin *plugin) {
@@ -1093,7 +1078,7 @@ static PurplePluginInfo info =
 	NULL,                                             /**< dependencies   */
 	PURPLE_PRIORITY_DEFAULT,                            /**< priority       */
 
-	"prpl-irc",                                       /**< id             */
+	"prpl-eionrobb-ircv3",                            /**< id             */
 	"IRC",                                            /**< name           */
 	DISPLAY_VERSION,                                  /**< version        */
 	N_("IRC Protocol Plugin"),                        /**  summary        */

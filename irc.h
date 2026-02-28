@@ -23,15 +23,54 @@
 #ifndef _PURPLE_IRC_H
 #define _PURPLE_IRC_H
 
-#include <glib.h>
+#ifndef DISPLAY_VERSION
+#	define DISPLAY_VERSION "2.0.0"
+#endif
+#ifndef PURPLE_WEBSITE
+#	define PURPLE_WEBSITE "https://github.com/EionRobb/purple2-ircv3"
+#endif
+
+#include <purple.h>
+#ifndef PURPLE_PLUGINS
+#	define PURPLE_PLUGINS 1
+#endif
+
+#ifdef _WIN32
+#	include <win32/win32dep.h>
+#endif
 
 #ifdef HAVE_CYRUS_SASL
 #include <sasl/sasl.h>
 #endif
 
-#include "ft.h"
-#include "roomlist.h"
-#include "sslconn.h"
+#ifdef ENABLE_NLS
+#      define GETTEXT_PACKAGE "pidgin"
+#      include <glib/gi18n-lib.h>
+#	ifdef _WIN32
+#		ifdef LOCALEDIR
+#			undef LOCALEDIR
+#		endif
+#		define LOCALEDIR  wpurple_locale_dir()
+#	endif
+#else
+#      define _(a) (a)
+#      define N_(a) (a)
+#endif
+
+
+#if !GLIB_CHECK_VERSION(2, 32, 0)
+static inline void
+g_queue_free_full(GQueue *queue, GDestroyNotify free_func)
+{
+    g_queue_foreach(queue, (GFunc) free_func, NULL);
+    g_queue_free(queue);
+}
+#endif /* 2.32.0 */
+
+#if !GLIB_CHECK_VERSION(2, 68, 0) && !PURPLE_VERSION_CHECK(2, 14, 2)
+#define g_memdup2(mem,size) g_memdup((mem),(size))
+#endif
+
 
 #define IRC_DEFAULT_SERVER "irc.libera.chat"
 #define IRC_DEFAULT_PORT 6667

@@ -21,13 +21,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02111-1301  USA
  */
 
-#include "internal.h"
 #include "irc.h"
-#include "debug.h"
-#include "ft.h"
-#include "glibcompat.h"
-#include "notify.h"
-#include "network.h"
 
 /***************************************************************************
  * Functions related to receiving files via DCC SEND
@@ -274,6 +268,33 @@ static gssize irc_dccsend_send_write(const guchar *buffer, size_t size, PurpleXf
 		ret = 0;
 
 	return ret;
+}
+
+static gboolean
+_purple_network_set_common_socket_flags(int fd)
+{
+	int flags;
+	gboolean succ = TRUE;
+
+	g_return_val_if_fail(fd >= 0, FALSE);
+
+	flags = fcntl(fd, F_GETFL);
+
+	if (fcntl(fd, F_SETFL, flags | O_NONBLOCK) != 0) {
+		purple_debug_warning("network",
+			"Couldn't set O_NONBLOCK flag\n");
+		succ = FALSE;
+	}
+
+#ifndef _WIN32
+	if (fcntl(fd, F_SETFD, FD_CLOEXEC) != 0) {
+		purple_debug_warning("network",
+			"Couldn't set FD_CLOEXEC flag\n");
+		succ = FALSE;
+	}
+#endif
+
+	return succ;
 }
 
 static void irc_dccsend_send_connected(gpointer data, int source, PurpleInputCondition cond) {
