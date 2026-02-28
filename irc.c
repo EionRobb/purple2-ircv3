@@ -446,9 +446,19 @@ static gboolean do_login(PurpleConnection *gc) {
 	struct irc_conn *irc = gc->proto_data;
 	const char *pass = purple_connection_get_password(gc);
 	gint interval, burst;
+	const gboolean use_sasl = 
 #ifdef HAVE_CYRUS_SASL
-	const gboolean use_sasl = purple_account_get_bool(irc->account, "sasl", FALSE);
+	purple_account_get_bool(irc->account, "sasl", FALSE);
+#else
+	FALSE;
 #endif
+
+	buf = irc_format(irc, "vv", "CAP", "LS 302");
+	if (irc_priority_send(irc, buf) < 0) {
+		g_free(buf);
+		return FALSE;
+	}
+	g_free(buf);
 
 	if (pass && *pass) {
 #ifdef HAVE_CYRUS_SASL
@@ -463,13 +473,6 @@ static gboolean do_login(PurpleConnection *gc) {
 		}
 		g_free(buf);
 	}
-
-	buf = irc_format(irc, "vv", "CAP", "LS 302");
-	if (irc_priority_send(irc, buf) < 0) {
-		g_free(buf);
-		return FALSE;
-	}
-	g_free(buf);
 
 	realname = purple_account_get_string(irc->account, "realname", "");
 	identname = purple_account_get_string(irc->account, "username", "");
@@ -597,7 +600,11 @@ static void irc_close(PurpleConnection *gc)
 		g_string_free(irc->motd, TRUE);
 	g_free(irc->server);
 
-    g_queue_foreach(irc->send_queue, (GFunc) g_free, NULL);
+	// Don't use g_queue_free_full() since that's too-new for Windows
+	while (!g_queue_is_empty(irc->send_queue)) {
+		gchar *msg = g_queue_pop_head(irc->send_queue);
+		g_free(msg);
+	}
     g_queue_free(irc->send_queue);
 	if(irc->send_handler != 0) {
 		g_source_remove(irc->send_handler);
@@ -671,8 +678,7 @@ unsigned int irc_conv_send_typing(PurpleConversation *conv, PurpleTypingState st
 		return 0;
 	}
 
-	if (!purple_strequal(purple_plugin_get_id(purple_connection_get_prpl(gc)),
-						"eionrobb-prpl-irc")) {
+	if (!purple_strequal(purple_plugin_get_id(purple_connection_get_prpl(gc)), PLUGIN_ID)) {
 		return 0;
 	}
 
@@ -1033,84 +1039,30 @@ static void irc_keepalive(PurpleConnection *gc)
 		irc_cmd_ping(irc, NULL, NULL, NULL);
 }
 
-static PurplePluginProtocolInfo prpl_info =
+// Add forwards-compatibility for newer libpurple's when compiling on older ones
+typedef struct 
 {
-	OPT_PROTO_CHAT_TOPIC | OPT_PROTO_PASSWORD_OPTIONAL |
-	OPT_PROTO_SLASH_COMMANDS_NATIVE,
-	NULL,					/* user_splits */
-	NULL,					/* protocol_options */
-	NO_BUDDY_ICONS,		/* icon_spec */
-	irc_blist_icon,		/* list_icon */
-	NULL,			/* list_emblems */
-	NULL,					/* status_text */
-	NULL,					/* tooltip_text */
-	irc_status_types,	/* away_states */
-	NULL,					/* blist_node_menu */
-	irc_chat_join_info,	/* chat_info */
-	irc_chat_info_defaults,	/* chat_info_defaults */
-	irc_login,		/* login */
-	irc_close,		/* close */
-	irc_im_send,		/* send_im */
-	NULL,					/* set_info */
-    irc_send_typing,                  /* send_typing */
-	irc_get_info,		/* get_info */
-	irc_set_status,		/* set_status */
-	NULL,					/* set_idle */
-	NULL,					/* change_passwd */
-	irc_add_buddy,		/* add_buddy */
-	NULL,					/* add_buddies */
-	irc_remove_buddy,	/* remove_buddy */
-	NULL,					/* remove_buddies */
-	NULL,					/* add_permit */
-	NULL,					/* add_deny */
-	NULL,					/* rem_permit */
-	NULL,					/* rem_deny */
-	NULL,					/* set_permit_deny */
-	irc_chat_join,		/* join_chat */
-	NULL,					/* reject_chat */
-	irc_get_chat_name,	/* get_chat_name */
-	irc_chat_invite,	/* chat_invite */
-	irc_chat_leave,		/* chat_leave */
-	NULL,					/* chat_whisper */
-	irc_chat_send,		/* chat_send */
-	irc_keepalive,		/* keepalive */
-	NULL,					/* register_user */
-	NULL,					/* get_cb_info */
-	NULL,					/* get_cb_away */
-	NULL,					/* alias_buddy */
-	NULL,					/* group_buddy */
-	NULL,					/* rename_group */
-	NULL,					/* buddy_free */
-	NULL,					/* convo_closed */
-	purple_normalize_nocase,	/* normalize */
-	NULL,					/* set_buddy_icon */
-	NULL,					/* remove_group */
-	NULL,					/* get_cb_real_name */
-	irc_chat_set_topic,	/* set_chat_topic */
-	NULL,					/* find_blist_chat */
-	irc_roomlist_get_list,	/* roomlist_get_list */
-	irc_roomlist_cancel,	/* roomlist_cancel */
-	NULL,					/* roomlist_expand_category */
-	NULL,					/* can_receive_file */
-	irc_dccsend_send_file,	/* send_file */
-	irc_dccsend_new_xfer,	/* new_xfer */
-	NULL,					/* offline_message */
-	NULL,					/* whiteboard_prpl_ops */
-	irc_send_raw,			/* send_raw */
-	NULL,					/* roomlist_room_serialize */
-	NULL,                   /* unregister_user */
-	NULL,                   /* send_attention */
-	NULL,                   /* get_attention_types */
-	sizeof(PurplePluginProtocolInfo),    /* struct_size */
-	NULL,                    /* get_account_text_table */
-	NULL,					 /* initiate_media */
-	NULL,					 /* get_media_caps */
-	NULL,					 /* get_moods */
-	NULL,					 /* set_public_alias */
-	NULL,					 /* get_public_alias */
-	NULL,					 /* add_buddy_with_invite */
-	NULL					 /* add_buddies_with_invite */
-};
+	PurplePluginProtocolInfo parent;
+
+	#if !PURPLE_VERSION_CHECK(2, 6, 0)
+		gboolean (*initiate_media)(PurpleAccount *account, const char *who, PurpleMediaSessionType type);
+		PurpleMediaCaps (*get_media_caps)(PurpleAccount *account, const char *who);
+	#endif
+	#if !PURPLE_VERSION_CHECK(2, 7, 0)
+		PurpleMood *(*get_moods)(PurpleAccount *account);
+		void (*set_public_alias)(PurpleConnection *gc, const char *alias, PurpleSetPublicAliasSuccessCallback success_cb, PurpleSetPublicAliasFailureCallback failure_cb);
+		void (*get_public_alias)(PurpleConnection *gc, PurpleGetPublicAliasSuccessCallback success_cb, PurpleGetPublicAliasFailureCallback failure_cb);
+	#endif
+	#if !PURPLE_VERSION_CHECK(2, 8, 0)
+		void (*add_buddy_with_invite)(PurpleConnection *pc, PurpleBuddy *buddy, PurpleGroup *group, const char *message);
+		void (*add_buddies_with_invite)(PurpleConnection *pc, GList *buddies, GList *groups, const char *message);
+	#endif
+	#if !PURPLE_VERSION_CHECK(2, 14, 0)
+		char *(*get_cb_alias)(PurpleConnection *gc, int id, const char *who);
+		gboolean (*chat_can_receive_file)(PurpleConnection *, int id);
+		void (*chat_send_file)(PurpleConnection *, int id, const char *filename);
+	#endif
+} PurplePluginProtocolInfoExt;
 
 static gboolean load_plugin (PurplePlugin *plugin) {
 
@@ -1129,28 +1081,28 @@ static gboolean load_plugin (PurplePlugin *plugin) {
 static PurplePluginInfo info =
 {
 	PURPLE_PLUGIN_MAGIC,
-	PURPLE_MAJOR_VERSION,
-	PURPLE_MINOR_VERSION,
-	PURPLE_PLUGIN_PROTOCOL,                             /**< type           */
+	2,
+	10,
+	PURPLE_PLUGIN_PROTOCOL,                           /**< type           */
 	NULL,                                             /**< ui_requirement */
 	0,                                                /**< flags          */
 	NULL,                                             /**< dependencies   */
-	PURPLE_PRIORITY_DEFAULT,                            /**< priority       */
+	PURPLE_PRIORITY_DEFAULT,                          /**< priority       */
 
-	"prpl-eionrobb-ircv3",                            /**< id             */
-    "IRC v3",                                      /**< name           */
+	PLUGIN_ID,                                        /**< id             */
+    "IRC v3",                                         /**< name           */
 	DISPLAY_VERSION,                                  /**< version        */
-	N_("IRC Protocol Plugin"),                        /**  summary        */
-	N_("The IRC Protocol Plugin that Sucks Less"),    /**  description    */
+	N_("IRC Protocol Plugin"),                        /**< summary        */
+	N_("The IRC Protocol Plugin that Sucks Less"),    /**< description    */
 	NULL,                                             /**< author         */
-	PURPLE_WEBSITE,                                     /**< homepage       */
+	PURPLE_WEBSITE,                                   /**< homepage       */
 
 	load_plugin,                                      /**< load           */
 	NULL,                                             /**< unload         */
 	NULL,                                             /**< destroy        */
 
 	NULL,                                             /**< ui_info        */
-	&prpl_info,                                       /**< extra_info     */
+	NULL,                                             /**< extra_info     */
 	NULL,                                             /**< prefs_info     */
 	irc_actions,
 
@@ -1163,26 +1115,62 @@ static PurplePluginInfo info =
 
 static void _init_plugin(PurplePlugin *plugin)
 {
+	PurplePluginProtocolInfoExt *prpl_info_ext = g_new0(PurplePluginProtocolInfoExt, 1);
+	PurplePluginProtocolInfo *prpl_info = (PurplePluginProtocolInfo *) prpl_info_ext;
+	PurpleBuddyIconSpec icon_spec = NO_BUDDY_ICONS;
 	PurpleAccountUserSplit *split;
 	PurpleAccountOption *option;
 
+	plugin->info->extra_info = prpl_info_ext;
+
+	prpl_info->options = OPT_PROTO_CHAT_TOPIC | OPT_PROTO_PASSWORD_OPTIONAL | OPT_PROTO_SLASH_COMMANDS_NATIVE;
+	prpl_info->user_splits = NULL;
+	prpl_info->protocol_options = NULL;
+	prpl_info->icon_spec = icon_spec;
+	prpl_info->list_icon = irc_blist_icon;
+	prpl_info->status_types = irc_status_types;
+	prpl_info->chat_info = irc_chat_join_info;
+	prpl_info->chat_info_defaults = irc_chat_info_defaults;
+	prpl_info->login = irc_login;
+	prpl_info->close = irc_close;
+	prpl_info->send_im = irc_im_send;
+	prpl_info->send_typing = irc_send_typing;
+	prpl_info->get_info = irc_get_info;
+	prpl_info->set_status = irc_set_status;
+	prpl_info->add_buddy = irc_add_buddy;
+	prpl_info->remove_buddy = irc_remove_buddy;
+	prpl_info->join_chat = irc_chat_join;
+	prpl_info->get_chat_name = irc_get_chat_name;
+	prpl_info->chat_invite = irc_chat_invite;
+	prpl_info->chat_leave = irc_chat_leave;
+	prpl_info->chat_send = irc_chat_send;
+	prpl_info->keepalive = irc_keepalive;
+	prpl_info->normalize = purple_normalize_nocase;
+	prpl_info->set_chat_topic = irc_chat_set_topic;
+	prpl_info->roomlist_get_list = irc_roomlist_get_list;
+	prpl_info->roomlist_cancel = irc_roomlist_cancel;
+	prpl_info->send_file = irc_dccsend_send_file;
+	prpl_info->new_xfer = irc_dccsend_new_xfer;
+	prpl_info->send_raw = irc_send_raw;
+	prpl_info->struct_size = sizeof(PurplePluginProtocolInfoExt);
+
 	split = purple_account_user_split_new(_("Server"), IRC_DEFAULT_SERVER, '@');
-	prpl_info.user_splits = g_list_append(prpl_info.user_splits, split);
+	prpl_info->user_splits = g_list_append(prpl_info->user_splits, split);
 
 	option = purple_account_option_int_new(_("Port"), "port", IRC_DEFAULT_PORT);
-	prpl_info.protocol_options = g_list_append(prpl_info.protocol_options, option);
+	prpl_info->protocol_options = g_list_append(prpl_info->protocol_options, option);
 
 	option = purple_account_option_string_new(_("Encodings"), "encoding", IRC_DEFAULT_CHARSET);
-	prpl_info.protocol_options = g_list_append(prpl_info.protocol_options, option);
+	prpl_info->protocol_options = g_list_append(prpl_info->protocol_options, option);
 
 	option = purple_account_option_bool_new(_("Auto-detect incoming UTF-8"), "autodetect_utf8", IRC_DEFAULT_AUTODETECT);
-	prpl_info.protocol_options = g_list_append(prpl_info.protocol_options, option);
+	prpl_info->protocol_options = g_list_append(prpl_info->protocol_options, option);
 
 	option = purple_account_option_string_new(_("Ident name"), "username", "");
-	prpl_info.protocol_options = g_list_append(prpl_info.protocol_options, option);
+	prpl_info->protocol_options = g_list_append(prpl_info->protocol_options, option);
 
 	option = purple_account_option_string_new(_("Real name"), "realname", "");
-	prpl_info.protocol_options = g_list_append(prpl_info.protocol_options, option);
+	prpl_info->protocol_options = g_list_append(prpl_info->protocol_options, option);
 
 	/*
 	option = purple_account_option_string_new(_("Quit message"), "quitmsg", IRC_DEFAULT_QUIT);
@@ -1190,30 +1178,30 @@ static void _init_plugin(PurplePlugin *plugin)
 	*/
 
 	option = purple_account_option_bool_new(_("Use SSL"), "ssl", FALSE);
-	prpl_info.protocol_options = g_list_append(prpl_info.protocol_options, option);
+	prpl_info->protocol_options = g_list_append(prpl_info->protocol_options, option);
 
 #ifdef HAVE_CYRUS_SASL
 	option = purple_account_option_bool_new(_("Authenticate with SASL"), "sasl", FALSE);
-	prpl_info.protocol_options = g_list_append(prpl_info.protocol_options, option);
+	prpl_info->protocol_options = g_list_append(prpl_info->protocol_options, option);
 
 	option = purple_account_option_string_new(_("SASL login name"), "saslname", "");
-	prpl_info.protocol_options = g_list_append(prpl_info.protocol_options, option);
+	prpl_info->protocol_options = g_list_append(prpl_info->protocol_options, option);
 
 	option = purple_account_option_bool_new(
 						_("Allow plaintext SASL auth over unencrypted connection"),
 						"auth_plain_in_clear", FALSE);
-	prpl_info.protocol_options = g_list_append(prpl_info.protocol_options, option);
+	prpl_info->protocol_options = g_list_append(prpl_info->protocol_options, option);
 #endif
 
 	option = purple_account_option_int_new(_("Seconds between sending messages"),
 	                                       "ratelimit-interval",
 	                                       IRC_DEFAULT_COMMAND_INTERVAL);
-	prpl_info.protocol_options = g_list_append(prpl_info.protocol_options, option);
+	prpl_info->protocol_options = g_list_append(prpl_info->protocol_options, option);
 
 	option = purple_account_option_int_new(_("Maximum messages to send at once"),
 	                                       "ratelimit-burst",
 	                                       IRC_DEFAULT_COMMAND_MAX_BURST);
-	prpl_info.protocol_options = g_list_append(prpl_info.protocol_options, option);
+	prpl_info->protocol_options = g_list_append(prpl_info->protocol_options, option);
 
 	_irc_plugin = plugin;
 

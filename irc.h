@@ -23,6 +23,7 @@
 #ifndef _PURPLE_IRC_H
 #define _PURPLE_IRC_H
 
+#define PLUGIN_ID "prpl-eionrobb-ircv3"
 #ifndef DISPLAY_VERSION
 #	define DISPLAY_VERSION "2.0.0"
 #endif

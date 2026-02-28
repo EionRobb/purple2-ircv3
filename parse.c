@@ -221,7 +221,7 @@ static void irc_register_command(struct _irc_user_cmd *c)
 
 	args[i] = '\0';
 
-	purple_cmd_register(c->name, args, PURPLE_CMD_P_PRPL, f, "prpl-irc",
+	purple_cmd_register(c->name, args, PURPLE_CMD_P_PRPL, f, PLUGIN_ID,
 	                  irc_parse_purple_cmd, _(c->help), NULL);
 }
 
