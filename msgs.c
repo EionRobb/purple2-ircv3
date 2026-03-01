@@ -897,9 +897,21 @@ irc_msg_invite(struct irc_conn *irc, const char *name, const char *from, char **
 	gchar *nick;
 
 	g_return_if_fail(gc);
+	nick = irc_mask_nick(from);
+
+	// If the invitee is not us, display it as an info message
+	if (purple_strequal(args[0], purple_connection_get_display_name(gc))) {
+		PurpleConversation *convo = purple_find_conversation_with_account(PURPLE_CONV_TYPE_CHAT, args[1], irc->account);
+		if (convo) {
+			gchar *msg = g_strdup_printf(_("%s has invited %s to the channel %s"), nick, args[0], args[1]);
+			purple_conv_chat_write(PURPLE_CONV_CHAT(convo), args[1], msg, PURPLE_MESSAGE_SYSTEM, time(NULL));
+			g_free(msg);
+		}
+		g_free(nick);
+		return;
+	}
 
 	components = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, g_free);
-	nick = irc_mask_nick(from);
 
 	g_hash_table_insert(components, g_strdup("channel"), g_strdup(args[1]));
 
@@ -1802,6 +1814,8 @@ irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **arg
 				g_string_append(req, "labeled-response ");
 			} else if (strcmp(cap_array[i], "server-time") == 0) {
 				g_string_append(req, "server-time ");
+			} else if (strcmp(cap_array[i], "invite-notify") == 0) {
+				g_string_append(req, "invite-notify ");
 			}
 #ifdef HAVE_CYRUS_SASL
 			else if ((strcmp(cap_array[i], "sasl") == 0 || strncmp(cap_array[i], "sasl=", 5) == 0) &&
