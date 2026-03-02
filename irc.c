@@ -68,6 +68,7 @@ irc_buddy_free(struct irc_buddy *ib);
 
 static gulong chat_conversation_typing_signal = 0;
 PurplePlugin *_irc_plugin = NULL;
+static GHashTable *host_aliases = NULL;
 
 static void
 irc_view_motd(PurplePluginAction *action)
@@ -1079,6 +1080,173 @@ irc_keepalive(PurpleConnection *gc)
 		irc_cmd_ping(irc, NULL, NULL, NULL);
 }
 
+static PurpleAccount *
+find_irc_account(const gchar *host)
+{
+	PurpleAccount *acct = NULL;
+	gchar *hostsuffix = g_strconcat("@", host, NULL);
+	gchar *pos;
+	GList *l;
+
+	if ((pos = strchr(hostsuffix, ':')))
+		*pos = '\0';
+
+	for (l = purple_accounts_get_all();
+		 l;
+		 l = l->next) {
+		if (g_str_equal("prpl-irc", purple_account_get_protocol_id(l->data)) && g_str_has_suffix(purple_account_get_username(l->data), hostsuffix) && purple_account_is_connected(l->data)) {
+			acct = l->data;
+			break;
+		}
+	}
+
+	g_free(hostsuffix);
+	return acct;
+}
+
+static gboolean
+irc_uri_handler(const char *proto, const char *cmd, GHashTable *params)
+{
+	PurpleAccount *acct;
+	gchar **split;
+	const gchar *host, *target, *port;
+	gboolean secure = FALSE;
+	gboolean isnick = FALSE, isserver = FALSE /*, needkey = FALSE, needpass = FALSE*/;
+	gint i;
+
+	// only deal with irc: and ircs: uri's
+	if (!g_str_equal(proto, "irc") && !(g_str_equal(proto, "\"irc"))) {
+		if (g_str_equal(proto, "ircs") || g_str_equal(proto, "\"ircs"))
+			secure = TRUE;
+		else
+			return FALSE;
+	}
+
+	/* irc:[ //[ <host>[:<port>] ]/[<target>] [,needpass] ] */
+
+	purple_debug_info("irc-proto-handler", "%s\n", cmd);
+
+	while (*cmd && *cmd == '/')
+		cmd = cmd + 1;
+
+	split = g_strsplit_set(cmd, "/,", -1);
+	if (!split)
+		return FALSE;
+
+	for (i = 2; i < g_strv_length(split); i++) {
+		if (g_str_equal(split[i], "isuser"))
+			isnick = TRUE;
+		else if (g_str_equal(split[i], "isserver") || g_str_equal(split[i], "isnetwork"))
+			isserver = TRUE;
+		/*else if (g_str_equal(split[i], "needkey"))
+			needkey = TRUE;
+		else if (g_str_equal(split[i], "needpass"))
+			needpass = TRUE;*/
+	}
+
+	if (split[0]) {
+		gchar *auth_host_port = split[0];
+		gchar *at_sign = strrchr(auth_host_port, '@');
+		gchar *host_port;
+		gchar *auth_user = NULL;
+		gchar *auth_pass = NULL;
+		gchar **hostport;
+
+		if (at_sign) {
+			*at_sign = '\0';
+			host_port = at_sign + 1;
+
+			auth_pass = strchr(auth_host_port, ':');
+			if (auth_pass) {
+				*auth_pass = '\0';
+				auth_pass++;
+			}
+			auth_user = auth_host_port;
+		} else {
+			host_port = auth_host_port;
+		}
+
+		hostport = g_strsplit(host_port, ":", 2);
+		host = hostport[0];
+		port = hostport[1];
+		acct = find_irc_account(host);
+		if (acct == NULL) {
+			const gchar *pass = g_hash_table_lookup(params, "pass");
+			gchar *guest_nick_host;
+			gchar *decoded_user = auth_user ? g_strdup(purple_url_decode(auth_user)) : NULL;
+
+			if (!isserver && !strchr(host, '.')) {
+				/* TODO: translate network name into a host name */
+				host = g_hash_table_lookup(host_aliases, host);
+				if (!host) {
+					g_free(decoded_user);
+					g_strfreev(hostport);
+					g_strfreev(split);
+					return FALSE;
+				}
+			}
+
+			guest_nick_host = g_strconcat(decoded_user ? decoded_user : "Guest", "@", host, NULL);
+			acct = purple_account_new(guest_nick_host, "prpl-irc");
+			g_free(guest_nick_host);
+			g_free(decoded_user);
+
+			if (auth_pass && *auth_pass) {
+				gchar *decoded_pass = g_strdup(purple_url_decode(auth_pass));
+				purple_account_set_password(acct, decoded_pass);
+				g_free(decoded_pass);
+			} else if (pass && *pass) {
+				purple_account_set_password(acct, pass);
+			}
+
+			purple_account_set_bool(acct, "ssl", secure);
+			if (port && *port)
+				purple_account_set_int(acct, "port", atoi(port));
+			else
+				purple_account_set_int(acct, "port", secure ? 994 : 6667);
+
+			purple_account_connect(acct);
+		}
+		g_strfreev(hostport);
+
+		if (split[1]) {
+			PurpleConversation *conv = NULL;
+			const gchar *msg = g_hash_table_lookup(params, "msg");
+			const gchar *key = g_hash_table_lookup(params, "key");
+
+			target = purple_url_decode(split[1]);
+			if (isnick) {
+				conv = purple_conversation_new(PURPLE_CONV_TYPE_IM, acct, target);
+				purple_conversation_present(conv);
+			} else {
+				PurpleConnection *pc = purple_account_get_connection(acct);
+				GHashTable *chat_params;
+				gchar *real_target;
+
+				if (target[0] != '#' && target[0] != '&' && target[0] != '+')
+					real_target = g_strconcat(/* TODO pref: */ "#", target, NULL);
+				else
+					real_target = g_strdup(target);
+				chat_params = irc_chat_info_defaults(pc, real_target);
+
+				if (key && *key)
+					g_hash_table_insert(chat_params, "password", g_strdup(key));
+
+				irc_chat_join(pc, chat_params);
+
+				conv = purple_find_conversation_with_account(PURPLE_CONV_TYPE_CHAT, real_target, acct);
+				g_free(real_target);
+			}
+			if (conv != NULL && msg && *msg)
+				purple_conv_send_confirm(conv, msg);
+		}
+	}
+
+	g_strfreev(split);
+
+	return TRUE;
+}
+
 // Add forwards-compatibility for newer libpurple's when compiling on older ones
 typedef struct
 {
@@ -1107,9 +1275,23 @@ typedef struct
 static gboolean
 load_plugin(PurplePlugin *plugin)
 {
-
+	purple_signal_connect(purple_get_core(), "uri-handler", plugin, PURPLE_CALLBACK(irc_uri_handler), NULL);
 	purple_signal_register(plugin, "irc-sending-text", purple_marshal_VOID__POINTER_POINTER, NULL, 2, purple_value_new(PURPLE_TYPE_SUBTYPE, PURPLE_SUBTYPE_CONNECTION), purple_value_new_outgoing(PURPLE_TYPE_STRING));
 	purple_signal_register(plugin, "irc-receiving-text", purple_marshal_VOID__POINTER_POINTER, NULL, 2, purple_value_new(PURPLE_TYPE_SUBTYPE, PURPLE_SUBTYPE_CONNECTION), purple_value_new_outgoing(PURPLE_TYPE_STRING));
+
+	// Host aliases for URL Handling
+	host_aliases = g_hash_table_new_full(g_str_hash, g_str_equal, NULL, NULL);
+	g_hash_table_insert(host_aliases, "efnet", "irc.choopa.net");
+	g_hash_table_insert(host_aliases, "moznet", "irc.mozilla.org");
+	g_hash_table_insert(host_aliases, "hybridnet", "irc.ssc.net");
+	g_hash_table_insert(host_aliases, "slashnet", "irc.slashnet.org");
+	g_hash_table_insert(host_aliases, "dalnet", "irc.dal.net");
+	g_hash_table_insert(host_aliases, "undernet", "irc.undernet.org");
+	g_hash_table_insert(host_aliases, "freenode", "irc.freenode.net");
+	g_hash_table_insert(host_aliases, "gamesurge", "irc.gamesurge.net");
+	g_hash_table_insert(host_aliases, "quakenet", "irc.quakenet.org");
+	g_hash_table_insert(host_aliases, "spidernet", "irc.spidernet.org");
+
 	return TRUE;
 }
 
