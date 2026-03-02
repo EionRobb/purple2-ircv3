@@ -27,6 +27,7 @@
  */
 
 #include "irc.h"
+#include "purple.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -131,6 +132,12 @@ irc_connected(struct irc_conn *irc, const char *nick)
 	irc_blist_timeout(irc);
 	if (!irc->timer)
 		irc->timer = purple_timeout_add_seconds(45, (GSourceFunc) irc_blist_timeout, (gpointer) irc);
+
+	if (irc->cap_metadata_2) {
+		char *buf = irc_format(irc, "v", "METADATA * SUB avatar");
+		irc_send(irc, buf);
+		g_free(buf);
+	}
 }
 
 /* This function is ugly, but it's really an error handler. */
@@ -1816,6 +1823,8 @@ irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **arg
 				g_string_append(req, "server-time ");
 			} else if (strcmp(cap_array[i], "invite-notify") == 0) {
 				g_string_append(req, "invite-notify ");
+			} else if (strcmp(cap_array[i], "draft/metadata-2") == 0) {
+				g_string_append(req, "draft/metadata-2 ");
 			}
 #ifdef HAVE_CYRUS_SASL
 			else if ((strcmp(cap_array[i], "sasl") == 0 || strncmp(cap_array[i], "sasl=", 5) == 0) &&
@@ -1844,6 +1853,8 @@ irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **arg
 				irc->cap_message_tags = FALSE;
 			} else if (strcmp(cap_array[i], "labeled-response") == 0) {
 				irc->cap_labeled_response = FALSE;
+			} else if (strcmp(cap_array[i], "draft/metadata-2") == 0) {
+				irc->cap_metadata_2 = FALSE;
 			}
 		}
 		g_strfreev(cap_array);
@@ -1855,6 +1866,8 @@ irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **arg
 				irc->cap_message_tags = TRUE;
 			} else if (strcmp(cap_array[i], "labeled-response") == 0) {
 				irc->cap_labeled_response = TRUE;
+			} else if (strcmp(cap_array[i], "draft/metadata-2") == 0) {
+				irc->cap_metadata_2 = TRUE;
 			}
 		}
 		g_strfreev(cap_array);
@@ -1868,6 +1881,8 @@ irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **arg
 				irc->cap_message_tags = TRUE;
 			} else if (strcmp(cap_array[i], "labeled-response") == 0) {
 				irc->cap_labeled_response = TRUE;
+			} else if (strcmp(cap_array[i], "draft/metadata-2") == 0) {
+				irc->cap_metadata_2 = TRUE;
 			}
 #ifdef HAVE_CYRUS_SASL
 			else if (strcmp(cap_array[i], "sasl") == 0) {
@@ -2007,4 +2022,63 @@ void
 irc_msg_ignore(struct irc_conn *irc, const char *name, const char *from, char **args)
 {
 	return;
+}
+
+struct irc_avatar_fetch {
+	struct irc_conn *irc;
+	char *nick;
+	char *url;
+};
+
+static void
+irc_avatar_fetch_cb(PurpleUtilFetchUrlData *url_data, gpointer user_data, const gchar *url_text, gsize len, const gchar *error_message)
+{
+	struct irc_avatar_fetch *req = user_data;
+	if (error_message == NULL && len > 0) {
+		purple_buddy_icons_set_for_user(req->irc->account, req->nick, g_memdup((gpointer) url_text, len), len, req->url);
+	} else if (error_message != NULL) {
+		purple_debug_warning("irc", "Failed to fetch avatar for %s: %s\n", req->nick, error_message);
+	}
+	g_free(req->url);
+	g_free(req->nick);
+	g_free(req);
+}
+
+void
+irc_msg_metadata(struct irc_conn *irc, const char *name, const char *from, char **args)
+{
+	const char *target, *key, *value;
+
+	if (g_strcmp0(name, "761") == 0) {
+		/* 761 <client> <target> <key> <visibility> :<value> */
+		target = args[1];
+		key = args[2];
+		value = args[4];
+	} else {
+		/* METADATA <target> <key> <visibility> :<value> */
+		target = args[0];
+		key = args[1];
+		value = args[3];
+	}
+
+	if (g_strcmp0(key, "avatar") == 0) {
+		if (value && *value) {
+			PurpleBuddy *buddy = purple_find_buddy(irc->account, target);
+			const char *url_to_fetch = value;
+
+			const char *existing_url = purple_buddy_icons_get_checksum_for_user(buddy);
+			if (g_strcmp0(existing_url, url_to_fetch) != 0) {
+				struct irc_avatar_fetch *req;
+
+				req = g_new0(struct irc_avatar_fetch, 1);
+				req->irc = irc;
+				req->nick = g_strdup(target);
+				req->url = g_strdup(url_to_fetch);
+				purple_util_fetch_url_request_len_with_account(irc->account, url_to_fetch, TRUE, purple_core_get_ui(), TRUE, NULL, FALSE, 10 * 1024 * 1024, irc_avatar_fetch_cb, req);
+			}
+		} else {
+			/* Avatar cleared */
+			purple_buddy_icons_set_for_user(irc->account, target, NULL, 0, NULL);
+		}
+	}
 }

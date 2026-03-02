@@ -148,6 +148,7 @@ struct irc_conn {
 	gchar *current_tags;
 	gboolean cap_message_tags;
 	gboolean cap_labeled_response;
+	gboolean cap_metadata_2;
 	GHashTable *sent_messages;
 	guint next_msg_id;
 	gboolean utf8only;
@@ -314,6 +315,8 @@ irc_msg_authfail(struct irc_conn *irc, const char *name, const char *from, char 
 
 void
 irc_msg_ignore(struct irc_conn *irc, const char *name, const char *from, char **args);
+void
+irc_msg_metadata(struct irc_conn *irc, const char *name, const char *from, char **args);
 
 void
 irc_cmd_table_build(struct irc_conn *irc);

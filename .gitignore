@@ -1,2 +1,5 @@
 *.dll
 *.so
+*.log
+build
+.cache

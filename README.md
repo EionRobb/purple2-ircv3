@@ -19,3 +19,5 @@ sudo make install
 * labeled-response (help not repeat own-sent messages)
 * message-tags (typing notifications)
 * utf8-only (utf-8 only)
+* metadata-2 (user avatars)
+
