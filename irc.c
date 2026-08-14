@@ -542,7 +542,7 @@ do_login(PurpleConnection *gc)
 	burst = purple_account_get_int(irc->account, "ratelimit-burst", IRC_DEFAULT_COMMAND_MAX_BURST);
 
 	irc->send_time = time(NULL) - (interval * burst);
-	irc->send_handler = g_timeout_add_seconds(1, irc_send_handler_cb, irc);
+	irc->send_handler = purple_timeout_add_seconds(1, irc_send_handler_cb, irc);
 
 	return TRUE;
 }
@@ -628,7 +628,7 @@ irc_close(PurpleConnection *gc)
 	}
 	g_queue_free(irc->send_queue);
 	if (irc->send_handler != 0) {
-		g_source_remove(irc->send_handler);
+		purple_timeout_remove(irc->send_handler);
 	}
 
 	g_free(irc->mode_chars);
