@@ -469,6 +469,17 @@ irc_login(PurpleAccount *account)
 		  purple_conversations_get_handle(), "chat-conversation-typing", purple_connection_get_prpl(gc), PURPLE_CALLBACK(irc_conv_send_typing), NULL);
 	}
 
+	if (!purple_account_get_bool(account, "ssl", FALSE)) {
+		time_t sts_expiry = (time_t) purple_account_get_int(account, "sts_expiry", 0);
+		if (sts_expiry > time(NULL)) {
+			int sts_port = purple_account_get_int(account, "sts_port", IRC_DEFAULT_SSL_PORT);
+			purple_debug_info("irc", "Enforcing active STS policy: upgrading connection to SSL on port %d\n", sts_port);
+			purple_account_set_bool(account, "ssl", TRUE);
+			if (sts_port > 0)
+				purple_account_set_int(account, "port", sts_port);
+		}
+	}
+
 	if (purple_account_get_bool(account, "ssl", FALSE)) {
 		if (purple_ssl_is_supported()) {
 			irc->gsc = purple_ssl_connect(account, irc->server, purple_account_get_int(account, "port", IRC_DEFAULT_SSL_PORT), irc_login_cb_ssl, irc_ssl_connect_failure, gc);
@@ -640,6 +651,10 @@ irc_close(PurpleConnection *gc)
 
 	g_free(irc->inbuf);
 	if (irc->gsc) {
+		int duration = purple_account_get_int(irc->account, "sts_duration", 0);
+		if (duration > 0) {
+			purple_account_set_int(irc->account, "sts_expiry", (int) (time(NULL) + duration));
+		}
 		purple_ssl_close(irc->gsc);
 	} else if (irc->fd >= 0) {
 		close(irc->fd);

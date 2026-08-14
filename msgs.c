@@ -1900,6 +1900,55 @@ irc_sasl_finish(struct irc_conn *irc)
 }
 #endif
 
+static void
+irc_parse_sts(struct irc_conn *irc, const char *val)
+{
+	gchar **tokens;
+	int i;
+	int port = 0;
+	int duration = -1;
+
+	if (!val)
+		return;
+
+	tokens = g_strsplit(val, ",", -1);
+	for (i = 0; tokens[i] != NULL; i++) {
+		if (strncmp(tokens[i], "port=", 5) == 0) {
+			port = atoi(tokens[i] + 5);
+		} else if (strncmp(tokens[i], "duration=", 9) == 0) {
+			duration = atoi(tokens[i] + 9);
+		}
+	}
+	g_strfreev(tokens);
+
+	if (irc->gsc == NULL) {
+		/* Insecure connection: process upgrade policy */
+		if (port > 0) {
+			purple_debug_info("irc", "STS upgrade policy received: switching to SSL on port %d\n", port);
+			purple_account_set_bool(irc->account, "ssl", TRUE);
+			purple_account_set_int(irc->account, "port", port);
+			purple_account_set_int(irc->account, "sts_port", port);
+
+			purple_account_disconnect(irc->account);
+			purple_account_connect(irc->account);
+		}
+	} else {
+		/* Secure connection: process persistence policy */
+		if (duration >= 0) {
+			if (duration > 0) {
+				time_t expiry = time(NULL) + duration;
+				purple_debug_info("irc", "STS persistence policy saved: duration %d, expiry %ld\n", duration, (long) expiry);
+				purple_account_set_int(irc->account, "sts_duration", duration);
+				purple_account_set_int(irc->account, "sts_expiry", (int) expiry);
+			} else {
+				purple_debug_info("irc", "STS persistence policy cleared\n");
+				purple_account_set_int(irc->account, "sts_duration", 0);
+				purple_account_set_int(irc->account, "sts_expiry", 0);
+			}
+		}
+	}
+}
+
 /* IRCv3 capabilities negotiation */
 void
 irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **args)
@@ -1929,6 +1978,9 @@ irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **arg
 				g_string_append(req, "away-notify ");
 			} else if (strcmp(cap_array[i], "draft/metadata-2") == 0) {
 				g_string_append(req, "draft/metadata-2 ");
+			} else if (strcmp(cap_array[i], "sts") == 0 || strncmp(cap_array[i], "sts=", 4) == 0) {
+				const char *val = (strncmp(cap_array[i], "sts=", 4) == 0) ? cap_array[i] + 4 : NULL;
+				irc_parse_sts(irc, val);
 			}
 #ifdef HAVE_CYRUS_SASL
 			else if ((strcmp(cap_array[i], "sasl") == 0 || strncmp(cap_array[i], "sasl=", 5) == 0) &&
@@ -1976,6 +2028,9 @@ irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **arg
 				irc->cap_away_notify = TRUE;
 			} else if (strcmp(cap_array[i], "draft/metadata-2") == 0) {
 				irc->cap_metadata_2 = TRUE;
+			} else if (strcmp(cap_array[i], "sts") == 0 || strncmp(cap_array[i], "sts=", 4) == 0) {
+				const char *val = (strncmp(cap_array[i], "sts=", 4) == 0) ? cap_array[i] + 4 : NULL;
+				irc_parse_sts(irc, val);
 			}
 		}
 		g_strfreev(cap_array);
