@@ -268,6 +268,48 @@ irc_msg_away(struct irc_conn *irc, const char *name, const char *from, char **ar
 }
 
 void
+irc_msg_away_notify(struct irc_conn *irc, const char *name, const char *from, char **args)
+{
+	PurpleConnection *gc;
+	char *nick;
+	GSList *chats;
+
+	gc = purple_account_get_connection(irc->account);
+	if (!gc || !from)
+		return;
+
+	nick = irc_mask_nick(from);
+	if (!nick)
+		return;
+
+	if (args[0] != NULL) {
+		if (*args[0] != '\0') {
+			purple_prpl_got_user_status(irc->account, nick, "away", "message", args[0], NULL);
+		} else {
+			purple_prpl_got_user_status(irc->account, nick, "away", NULL);
+		}
+	} else {
+		purple_prpl_got_user_status(irc->account, nick, "available", NULL);
+	}
+
+	chats = gc->buddy_chats;
+	while (chats) {
+		PurpleConvChat *chat = PURPLE_CONV_CHAT(chats->data);
+		if (purple_conv_chat_find_user(chat, nick)) {
+			PurpleConvChatBuddyFlags flags = purple_conv_chat_user_get_flags(chat, nick);
+			if (args[0] != NULL) {
+				purple_conv_chat_user_set_flags(chat, nick, flags | PURPLE_CBFLAGS_AWAY);
+			} else {
+				purple_conv_chat_user_set_flags(chat, nick, flags & ~PURPLE_CBFLAGS_AWAY);
+			}
+		}
+		chats = chats->next;
+	}
+
+	g_free(nick);
+}
+
+void
 irc_msg_badmode(struct irc_conn *irc, const char *name, const char *from, char **args)
 {
 	PurpleConnection *gc = purple_account_get_connection(irc->account);
@@ -501,15 +543,19 @@ irc_msg_who(struct irc_conn *irc, const char *name, const char *from, char **arg
 		PurpleConvChatBuddyFlags flags;
 		GList *keys = NULL, *values = NULL;
 
+		if (args[6][0] == 'G') {
+			purple_prpl_got_user_status(irc->account, args[5], "away", NULL);
+		} else if (args[6][0] == 'H') {
+			purple_prpl_got_user_status(irc->account, args[5], "available", NULL);
+		}
+
 		conv = purple_find_conversation_with_account(PURPLE_CONV_TYPE_CHAT, args[1], irc->account);
 		if (!conv) {
-			purple_debug(PURPLE_DEBUG_ERROR, "irc", "Got a WHO response for %s, which doesn't exist\n", args[1]);
 			return;
 		}
 
 		cb = purple_conv_chat_cb_find(PURPLE_CONV_CHAT(conv), args[5]);
 		if (!cb) {
-			purple_debug(PURPLE_DEBUG_ERROR, "irc", "Got a WHO response for %s who isn't a buddy.\n", args[5]);
 			return;
 		}
 
@@ -543,10 +589,6 @@ irc_msg_who(struct irc_conn *irc, const char *name, const char *from, char **arg
 
 		flags = cb->flags;
 
-		/* FIXME: I'm not sure this is really a good idea, now
-		 * that we no longer do periodic WHO.  It seems to me
-		 * like it's more likely to be confusing than not.
-		 * Comments? */
 		if (args[6][0] == 'G' && !(flags & PURPLE_CBFLAGS_AWAY)) {
 			purple_conv_chat_user_set_flags(chat, cb->name, flags | PURPLE_CBFLAGS_AWAY);
 		} else if (args[6][0] == 'H' && (flags & PURPLE_CBFLAGS_AWAY)) {
@@ -1823,6 +1865,8 @@ irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **arg
 				g_string_append(req, "server-time ");
 			} else if (strcmp(cap_array[i], "invite-notify") == 0) {
 				g_string_append(req, "invite-notify ");
+			} else if (strcmp(cap_array[i], "away-notify") == 0) {
+				g_string_append(req, "away-notify ");
 			} else if (strcmp(cap_array[i], "draft/metadata-2") == 0) {
 				g_string_append(req, "draft/metadata-2 ");
 			}
@@ -1853,6 +1897,8 @@ irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **arg
 				irc->cap_message_tags = FALSE;
 			} else if (strcmp(cap_array[i], "labeled-response") == 0) {
 				irc->cap_labeled_response = FALSE;
+			} else if (strcmp(cap_array[i], "away-notify") == 0) {
+				irc->cap_away_notify = FALSE;
 			} else if (strcmp(cap_array[i], "draft/metadata-2") == 0) {
 				irc->cap_metadata_2 = FALSE;
 			}
@@ -1866,6 +1912,8 @@ irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **arg
 				irc->cap_message_tags = TRUE;
 			} else if (strcmp(cap_array[i], "labeled-response") == 0) {
 				irc->cap_labeled_response = TRUE;
+			} else if (strcmp(cap_array[i], "away-notify") == 0) {
+				irc->cap_away_notify = TRUE;
 			} else if (strcmp(cap_array[i], "draft/metadata-2") == 0) {
 				irc->cap_metadata_2 = TRUE;
 			}
@@ -1881,6 +1929,8 @@ irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **arg
 				irc->cap_message_tags = TRUE;
 			} else if (strcmp(cap_array[i], "labeled-response") == 0) {
 				irc->cap_labeled_response = TRUE;
+			} else if (strcmp(cap_array[i], "away-notify") == 0) {
+				irc->cap_away_notify = TRUE;
 			} else if (strcmp(cap_array[i], "draft/metadata-2") == 0) {
 				irc->cap_metadata_2 = TRUE;
 			}

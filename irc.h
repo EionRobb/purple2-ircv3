@@ -149,6 +149,7 @@ struct irc_conn {
 	gboolean cap_message_tags;
 	gboolean cap_labeled_response;
 	gboolean cap_metadata_2;
+	gboolean cap_away_notify;
 	GHashTable *sent_messages;
 	guint next_msg_id;
 	gboolean utf8only;
@@ -214,6 +215,8 @@ void
 irc_msg_default(struct irc_conn *irc, const char *name, const char *from, char **args);
 void
 irc_msg_away(struct irc_conn *irc, const char *name, const char *from, char **args);
+void
+irc_msg_away_notify(struct irc_conn *irc, const char *name, const char *from, char **args);
 void
 irc_msg_badmode(struct irc_conn *irc, const char *name, const char *from, char **args);
 void

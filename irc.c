@@ -35,6 +35,8 @@ static const char *
 irc_blist_icon(PurpleAccount *a, PurpleBuddy *b);
 static GList *
 irc_status_types(PurpleAccount *account);
+static gchar *
+irc_status_text(PurpleBuddy *buddy);
 static GList *
 irc_actions(PurplePlugin *plugin, gpointer context);
 /* static GList *irc_chat_info(PurpleConnection *gc); */
@@ -344,6 +346,20 @@ irc_status_types(PurpleAccount *account)
 	types = g_list_append(types, type);
 
 	return types;
+}
+
+static gchar *
+irc_status_text(PurpleBuddy *buddy)
+{
+	PurplePresence *presence = purple_buddy_get_presence(buddy);
+	PurpleStatus *status = purple_presence_get_active_status(presence);
+	const gchar *message = purple_status_get_attr_string(status, "message");
+	
+	if (message == NULL) {
+		return NULL;
+	}
+	
+	return g_markup_printf_escaped("%s", message);
 }
 
 static GList *
@@ -764,8 +780,12 @@ irc_add_buddy(PurpleConnection *gc, PurpleBuddy *buddy, PurpleGroup *group)
 	/* if the timer isn't set, this is during signon, so we don't want to flood
 	 * ourself off with ISON's, so we don't, but after that we want to know when
 	 * someone's online asap */
-	if (irc->timer)
+	if (irc->timer) {
+		char *buf = irc_format(irc, "vn", "WHO", bname);
+		irc_send(irc, buf);
+		g_free(buf);
 		irc_ison_one(irc, ib);
+	}
 }
 
 static void
@@ -1345,6 +1365,7 @@ _init_plugin(PurplePlugin *plugin)
 	prpl_info->protocol_options = NULL;
 	prpl_info->icon_spec = icon_spec;
 	prpl_info->list_icon = irc_blist_icon;
+	prpl_info->status_text = irc_status_text;
 	prpl_info->status_types = irc_status_types;
 	prpl_info->chat_info = irc_chat_join_info;
 	prpl_info->chat_info_defaults = irc_chat_info_defaults;
