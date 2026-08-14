@@ -323,6 +323,23 @@ irc_ison_one(struct irc_conn *irc, struct irc_buddy *ib)
 	g_free(buf);
 }
 
+void
+irc_send_who(struct irc_conn *irc, const char *target)
+{
+	char *buf;
+
+	if (!irc || !target)
+		return;
+
+	if (irc->whox_supported) {
+		buf = irc_format(irc, "vtvv", "WHO", target, "%tcuihnsflar", "101");
+	} else {
+		buf = irc_format(irc, "vt", "WHO", target);
+	}
+	irc_send(irc, buf);
+	g_free(buf);
+}
+
 static const char *
 irc_blist_icon(PurpleAccount *a, PurpleBuddy *b)
 {
@@ -781,9 +798,7 @@ irc_add_buddy(PurpleConnection *gc, PurpleBuddy *buddy, PurpleGroup *group)
 	 * ourself off with ISON's, so we don't, but after that we want to know when
 	 * someone's online asap */
 	if (irc->timer) {
-		char *buf = irc_format(irc, "vn", "WHO", bname);
-		irc_send(irc, buf);
-		g_free(buf);
+		irc_send_who(irc, bname);
 		irc_ison_one(irc, ib);
 	}
 }

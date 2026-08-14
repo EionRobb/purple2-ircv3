@@ -228,6 +228,8 @@ irc_msg_features(struct irc_conn *irc, const char *name, const char *from, char 
 				irc->mode_chars = g_strdup(val + 1);
 		} else if (strcmp(features[i], "UTF8ONLY") == 0) {
 			irc->utf8only = TRUE;
+		} else if (strcmp(features[i], "WHOX") == 0 || strncmp(features[i], "WHOX=", 5) == 0) {
+			irc->whox_supported = TRUE;
 		}
 	}
 
@@ -594,6 +596,66 @@ irc_msg_who(struct irc_conn *irc, const char *name, const char *from, char **arg
 		} else if (args[6][0] == 'H' && (flags & PURPLE_CBFLAGS_AWAY)) {
 			purple_conv_chat_user_set_flags(chat, cb->name, flags & ~PURPLE_CBFLAGS_AWAY);
 		}
+	}
+}
+
+void
+irc_msg_whox(struct irc_conn *irc, const char *name, const char *from, char **args)
+{
+	PurpleConversation *conv;
+	PurpleConvChat *chat;
+	PurpleConvChatBuddy *cb;
+
+	const char *chan = args[2];
+	const char *user = args[3];
+	const char *host = args[5];
+	const char *nick = args[7];
+	const char *flags_str = args[8];
+	const char *account = args[11];
+	const char *realname = args[13];
+
+	char *userhost;
+	GList *keys = NULL, *values = NULL;
+
+	if (flags_str[0] == 'G') {
+		purple_prpl_got_user_status(irc->account, nick, "away", NULL);
+	} else if (flags_str[0] == 'H') {
+		purple_prpl_got_user_status(irc->account, nick, "available", NULL);
+	}
+
+	conv = purple_find_conversation_with_account(PURPLE_CONV_TYPE_CHAT, chan, irc->account);
+	if (!conv)
+		return;
+
+	cb = purple_conv_chat_cb_find(PURPLE_CONV_CHAT(conv), nick);
+	if (!cb)
+		return;
+
+	chat = PURPLE_CONV_CHAT(conv);
+
+	userhost = g_strdup_printf("%s@%s", user, host);
+
+	keys = g_list_prepend(keys, "userhost");
+	values = g_list_prepend(values, userhost);
+
+	keys = g_list_prepend(keys, "realname");
+	values = g_list_prepend(values, (gpointer) realname);
+
+	if (account && strcmp(account, "0") != 0) {
+		keys = g_list_prepend(keys, "account");
+		values = g_list_prepend(values, (gpointer) account);
+	}
+
+	purple_conv_chat_cb_set_attributes(chat, cb, keys, values);
+
+	g_list_free(keys);
+	g_list_free(values);
+	g_free(userhost);
+
+	if (flags_str[0] == 'G' && !(cb->flags & PURPLE_CBFLAGS_AWAY)) {
+		purple_conv_chat_user_set_flags(chat, cb->name, cb->flags | PURPLE_CBFLAGS_AWAY);
+	} else if (flags_str[0] == 'H' && (cb->flags & PURPLE_CBFLAGS_AWAY)) {
+		purple_conv_chat_user_set_flags(chat, cb->name, cb->flags & ~PURPLE_CBFLAGS_AWAY);
 	}
 }
 
@@ -1030,7 +1092,7 @@ irc_msg_join(struct irc_conn *irc, const char *name, const char *from, char **ar
 	PurpleConvChat *chat;
 	PurpleConvChatBuddy *cb;
 
-	char *nick, *userhost, *buf;
+	char *nick, *userhost;
 	struct irc_buddy *ib;
 	static int id = 1;
 
@@ -1053,9 +1115,7 @@ irc_msg_join(struct irc_conn *irc, const char *name, const char *from, char **ar
 		purple_conversation_set_data(convo, IRC_NAMES_FLAG, GINT_TO_POINTER(FALSE));
 
 		// Get the real name and user host for all participants.
-		buf = irc_format(irc, "vc", "WHO", args[0]);
-		irc_send(irc, buf);
-		g_free(buf);
+		irc_send_who(irc, args[0]);
 
 		/* Until purple_conversation_present does something that
 		 * one would expect in Pidgin, this call produces buggy

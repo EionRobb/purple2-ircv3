@@ -150,6 +150,7 @@ struct irc_conn {
 	gboolean cap_labeled_response;
 	gboolean cap_metadata_2;
 	gboolean cap_away_notify;
+	gboolean whox_supported;
 	GHashTable *sent_messages;
 	guint next_msg_id;
 	gboolean utf8only;
@@ -185,6 +186,8 @@ gboolean
 irc_who_channel_timeout(struct irc_conn *irc);
 void
 irc_buddy_query(struct irc_conn *irc);
+void
+irc_send_who(struct irc_conn *irc, const char *target);
 
 char *
 irc_escape_privmsg(const char *text, gssize length);
@@ -301,6 +304,8 @@ void
 irc_msg_tagmsg(struct irc_conn *irc, const char *name, const char *from, char **args);
 void
 irc_msg_who(struct irc_conn *irc, const char *name, const char *from, char **args);
+void
+irc_msg_whox(struct irc_conn *irc, const char *name, const char *from, char **args);
 void
 irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **args);
 #ifdef HAVE_CYRUS_SASL
