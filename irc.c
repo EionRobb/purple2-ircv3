@@ -461,6 +461,7 @@ irc_login(PurpleAccount *account)
 	irc->msgs = g_hash_table_new(g_str_hash, g_str_equal);
 	irc_msg_table_build(irc);
 	irc->sent_messages = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
+	irc->last_msg_times = g_hash_table_new_full((GHashFunc) irc_nick_hash, (GEqualFunc) irc_nick_equal, g_free, g_free);
 
 	purple_connection_update_progress(gc, _("Connecting"), 1, 2);
 
@@ -665,6 +666,8 @@ irc_close(PurpleConnection *gc)
 	g_hash_table_destroy(irc->msgs);
 	g_hash_table_destroy(irc->buddies);
 	g_hash_table_destroy(irc->sent_messages);
+	if (irc->last_msg_times)
+		g_hash_table_destroy(irc->last_msg_times);
 	if (irc->motd)
 		g_string_free(irc->motd, TRUE);
 	g_free(irc->server);
@@ -1478,6 +1481,49 @@ _init_plugin(PurplePlugin *plugin)
 	purple_prefs_remove("/plugins/prpl/irc");
 
 	irc_register_commands();
+}
+
+void
+irc_set_last_msg_time(struct irc_conn *irc, const char *target, const char *iso_timestamp)
+{
+	char *target_lc, *setting_key;
+
+	if (!irc || !target || !*target || !iso_timestamp || !*iso_timestamp)
+		return;
+
+	target_lc = g_utf8_strdown(target, -1);
+	g_hash_table_insert(irc->last_msg_times, g_strdup(target_lc), g_strdup(iso_timestamp));
+
+	setting_key = g_strdup_printf("chathistory_last_%s", target_lc);
+	purple_account_set_string(irc->account, setting_key, iso_timestamp);
+
+	g_free(setting_key);
+	g_free(target_lc);
+}
+
+const char *
+irc_get_last_msg_time(struct irc_conn *irc, const char *target)
+{
+	char *target_lc, *setting_key;
+	const char *val;
+
+	if (!irc || !target || !*target)
+		return NULL;
+
+	target_lc = g_utf8_strdown(target, -1);
+	val = g_hash_table_lookup(irc->last_msg_times, target_lc);
+	if (!val) {
+		setting_key = g_strdup_printf("chathistory_last_%s", target_lc);
+		val = purple_account_get_string(irc->account, setting_key, NULL);
+		if (val) {
+			g_hash_table_insert(irc->last_msg_times, g_strdup(target_lc), g_strdup(val));
+			val = g_hash_table_lookup(irc->last_msg_times, target_lc);
+		}
+		g_free(setting_key);
+	}
+	g_free(target_lc);
+
+	return val;
 }
 
 PURPLE_INIT_PLUGIN(irc, _init_plugin, info);

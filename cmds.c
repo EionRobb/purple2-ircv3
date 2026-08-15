@@ -731,3 +731,38 @@ irc_do_mode(struct irc_conn *irc, const char *target, const char *sign, char **o
 
 	return;
 }
+
+int
+irc_cmd_chathistory(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
+{
+	char *buf;
+	guint limit = irc->chathistory_limit > 0 ? irc->chathistory_limit : 50;
+	char *limit_str = g_strdup_printf("%u", limit);
+
+	if (!args || !args[0] || !*args[0]) {
+		/* Default: /chathistory in current channel/IM -> CHATHISTORY LATEST target * limit */
+		if (!target || !*target) {
+			g_free(limit_str);
+			return 0;
+		}
+		buf = irc_format(irc, "vvvvn", "CHATHISTORY", "LATEST", target, "*", limit_str);
+	} else if (g_ascii_strcasecmp(args[0], "LATEST") == 0 ||
+			   g_ascii_strcasecmp(args[0], "BEFORE") == 0 ||
+			   g_ascii_strcasecmp(args[0], "AFTER") == 0 ||
+			   g_ascii_strcasecmp(args[0], "AROUND") == 0 ||
+			   g_ascii_strcasecmp(args[0], "BETWEEN") == 0 ||
+			   g_ascii_strcasecmp(args[0], "TARGETS") == 0) {
+		/* User provided subcommand directly: e.g. /chathistory LATEST #channel * 50 */
+		buf = irc_format(irc, "v:", "CHATHISTORY", args[0]);
+	} else {
+		/* User provided a target: e.g. /chathistory #channel */
+		buf = irc_format(irc, "vvvvn", "CHATHISTORY", "LATEST", args[0], "*", limit_str);
+	}
+
+	irc_send(irc, buf);
+	g_free(buf);
+	g_free(limit_str);
+
+	return 0;
+}
+

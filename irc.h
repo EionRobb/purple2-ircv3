@@ -151,8 +151,12 @@ struct irc_conn {
 	gboolean cap_metadata_2;
 	gboolean cap_away_notify;
 	gboolean cap_extended_join;
+	gboolean cap_batch;
+	gboolean cap_chathistory;
+	guint chathistory_limit;
 	gboolean whox_supported;
 	GHashTable *sent_messages;
+	GHashTable *last_msg_times;
 	guint next_msg_id;
 	gboolean utf8only;
 
@@ -309,6 +313,8 @@ void
 irc_msg_whox(struct irc_conn *irc, const char *name, const char *from, char **args);
 void
 irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **args);
+void
+irc_msg_batch(struct irc_conn *irc, const char *name, const char *from, char **args);
 #ifdef HAVE_CYRUS_SASL
 void
 irc_msg_auth(struct irc_conn *irc, char *arg);
@@ -379,9 +385,16 @@ irc_cmd_topic(struct irc_conn *irc, const char *cmd, const char *target, const c
 int
 irc_cmd_wallops(struct irc_conn *irc, const char *cmd, const char *target, const char **args);
 int
+irc_cmd_chathistory(struct irc_conn *irc, const char *cmd, const char *target, const char **args);
+int
 irc_cmd_whois(struct irc_conn *irc, const char *cmd, const char *target, const char **args);
 int
 irc_cmd_whowas(struct irc_conn *irc, const char *cmd, const char *target, const char **args);
+
+void
+irc_set_last_msg_time(struct irc_conn *irc, const char *target, const char *iso_timestamp);
+const char *
+irc_get_last_msg_time(struct irc_conn *irc, const char *target);
 
 unsigned int
 irc_send_typing(PurpleConnection *gc, const char *name, PurpleTypingState state);

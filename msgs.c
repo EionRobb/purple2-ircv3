@@ -230,6 +230,10 @@ irc_msg_features(struct irc_conn *irc, const char *name, const char *from, char 
 			irc->utf8only = TRUE;
 		} else if (strcmp(features[i], "WHOX") == 0 || strncmp(features[i], "WHOX=", 5) == 0) {
 			irc->whox_supported = TRUE;
+		} else if (strncmp(features[i], "CHATHISTORY=", 12) == 0) {
+			irc->chathistory_limit = atoi(features[i] + 12);
+		} else if (strcmp(features[i], "CHATHISTORY") == 0) {
+			irc->chathistory_limit = 50;
 		}
 	}
 
@@ -1142,6 +1146,23 @@ irc_msg_join(struct irc_conn *irc, const char *name, const char *from, char **ar
 		// Get the real name and user host for all participants.
 		irc_send_who(irc, chan);
 
+		if (irc->cap_chathistory) {
+			guint limit = irc->chathistory_limit > 0 ? irc->chathistory_limit : 50;
+			char *limit_str = g_strdup_printf("%u", limit);
+			const char *last_time = irc_get_last_msg_time(irc, chan);
+			char *ref_param;
+			if (last_time && *last_time) {
+				ref_param = g_strdup_printf("timestamp=%s", last_time);
+			} else {
+				ref_param = g_strdup("*");
+			}
+			char *buf = irc_format(irc, "vvvvn", "CHATHISTORY", "LATEST", chan, ref_param, limit_str);
+			irc_send(irc, buf);
+			g_free(buf);
+			g_free(ref_param);
+			g_free(limit_str);
+		}
+
 		/* Until purple_conversation_present does something that
 		 * one would expect in Pidgin, this call produces buggy
 		 * behavior both for the /join and auto-join cases. */
@@ -1530,6 +1551,7 @@ irc_msg_handle_privmsg(struct irc_conn *irc, const char *name, const char *from,
 
 	time_t now = time(NULL);
 	gboolean self_sent = FALSE;
+	const gchar *time_tag = NULL;
 	if (irc->current_tags) {
 		// look for @label in current_tags string, check irc->sent_messages to see if we sent it, and skip if we did
 		gchar **tags = g_strsplit(irc->current_tags, ";", -1);
@@ -1540,12 +1562,23 @@ irc_msg_handle_privmsg(struct irc_conn *irc, const char *name, const char *from,
 					self_sent = TRUE;
 				}
 			} else if (g_str_has_prefix(tags[i], "time=")) {
-				const gchar *time_str = tags[i] + 5; // Skip "time="
-				now = purple_str_to_time(time_str, TRUE, NULL, NULL, NULL);
+				time_tag = tags[i] + 5; // Skip "time="
+				now = purple_str_to_time(time_tag, TRUE, NULL, NULL, NULL);
 			}
 		}
 		g_strfreev(tags);
 	}
+
+	char iso_buf[64];
+	if (time_tag) {
+		g_strlcpy(iso_buf, time_tag, sizeof(iso_buf));
+	} else {
+		struct tm *tm = gmtime(&now);
+		strftime(iso_buf, sizeof(iso_buf), "%Y-%m-%dT%H:%M:%SZ", tm);
+	}
+
+	const char *target = !purple_utf8_strcasecmp(to, purple_connection_get_display_name(gc)) ? nick : to;
+	irc_set_last_msg_time(irc, target, iso_buf);
 
 	if (!purple_utf8_strcasecmp(to, purple_connection_get_display_name(gc))) {
 		serv_got_im(gc, nick, msg, 0, now);
@@ -2028,6 +2061,10 @@ irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **arg
 				g_string_append(req, "away-notify ");
 			} else if (strcmp(cap_array[i], "extended-join") == 0) {
 				g_string_append(req, "extended-join ");
+			} else if (strcmp(cap_array[i], "batch") == 0) {
+				g_string_append(req, "batch ");
+			} else if (strcmp(cap_array[i], "draft/chathistory") == 0 || strcmp(cap_array[i], "chathistory") == 0) {
+				g_string_append(req, "draft/chathistory ");
 			} else if (strcmp(cap_array[i], "draft/metadata-2") == 0) {
 				g_string_append(req, "draft/metadata-2 ");
 			} else if (strcmp(cap_array[i], "sts") == 0 || strncmp(cap_array[i], "sts=", 4) == 0) {
@@ -2065,6 +2102,10 @@ irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **arg
 				irc->cap_away_notify = FALSE;
 			} else if (strcmp(cap_array[i], "extended-join") == 0) {
 				irc->cap_extended_join = FALSE;
+			} else if (strcmp(cap_array[i], "batch") == 0) {
+				irc->cap_batch = FALSE;
+			} else if (strcmp(cap_array[i], "draft/chathistory") == 0 || strcmp(cap_array[i], "chathistory") == 0) {
+				irc->cap_chathistory = FALSE;
 			} else if (strcmp(cap_array[i], "draft/metadata-2") == 0) {
 				irc->cap_metadata_2 = FALSE;
 			}
@@ -2082,6 +2123,10 @@ irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **arg
 				irc->cap_away_notify = TRUE;
 			} else if (strcmp(cap_array[i], "extended-join") == 0) {
 				irc->cap_extended_join = TRUE;
+			} else if (strcmp(cap_array[i], "batch") == 0) {
+				irc->cap_batch = TRUE;
+			} else if (strcmp(cap_array[i], "draft/chathistory") == 0 || strcmp(cap_array[i], "chathistory") == 0) {
+				irc->cap_chathistory = TRUE;
 			} else if (strcmp(cap_array[i], "draft/metadata-2") == 0) {
 				irc->cap_metadata_2 = TRUE;
 			} else if (strcmp(cap_array[i], "sts") == 0 || strncmp(cap_array[i], "sts=", 4) == 0) {
@@ -2104,6 +2149,10 @@ irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **arg
 				irc->cap_away_notify = TRUE;
 			} else if (strcmp(cap_array[i], "extended-join") == 0) {
 				irc->cap_extended_join = TRUE;
+			} else if (strcmp(cap_array[i], "batch") == 0) {
+				irc->cap_batch = TRUE;
+			} else if (strcmp(cap_array[i], "draft/chathistory") == 0 || strcmp(cap_array[i], "chathistory") == 0) {
+				irc->cap_chathistory = TRUE;
 			} else if (strcmp(cap_array[i], "draft/metadata-2") == 0) {
 				irc->cap_metadata_2 = TRUE;
 			}
@@ -2305,3 +2354,14 @@ irc_msg_metadata(struct irc_conn *irc, const char *name, const char *from, char 
 		}
 	}
 }
+
+void
+irc_msg_batch(struct irc_conn *irc, const char *name, const char *from, char **args)
+{
+	/* BATCH message: args[0] contains raw params after BATCH, e.g. "+ref chathistory #channel" or "-ref" */
+	if (!args || !args[0])
+		return;
+
+	purple_debug_info("irc", "Received BATCH: %s\n", args[0]);
+}
+

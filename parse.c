@@ -128,6 +128,7 @@ static struct _irc_msg {
 	{ "authenticate", ":", 1, irc_msg_authenticate }, /* SASL authenticate		*/
 #endif
 	{ "away", ":", 0, irc_msg_away_notify },		 /* Away notification (IRCv3)	*/
+	{ "batch", ":", 1, irc_msg_batch },			 /* Batch notification (IRCv3)	*/
 	{ "cap", "vv:", 3, irc_msg_cap },			 /* Capabilities negotiation		*/
 	{ "invite", "n:", 2, irc_msg_invite },		 /* Invited			*/
 	{ "join", ":", 1, irc_msg_join },			 /* Joined a channel		*/
@@ -158,6 +159,7 @@ static struct _irc_user_cmd {
 	{ "away", ":", irc_cmd_away, N_("away [message]:  Set an away message, or use no message to return from being away.") },
 	{ "ctcp", "t:", irc_cmd_ctcp, N_("ctcp <nick> <msg>: sends ctcp msg to nick.") },
 	{ "chanserv", ":", irc_cmd_service, N_("chanserv: Send a command to chanserv") },
+	{ "chathistory", "*", irc_cmd_chathistory, N_("chathistory [LATEST|BEFORE|AFTER] [target] [ref] [limit]: Request chat history from server/bouncer.") },
 	{ "deop", ":", irc_cmd_op, N_("deop &lt;nick1&gt; [nick2] ...:  Remove channel operator status from someone. You must be a channel operator to do this.") },
 	{ "devoice", ":", irc_cmd_op, N_("devoice &lt;nick1&gt; [nick2] ...:  Remove channel voice status from someone, preventing them from speaking if the channel is moderated (+m). You must be a channel operator to do this.") },
 	{ "invite", ":", irc_cmd_invite, N_("invite &lt;nick&gt; [room]:  Invite someone to join you in the specified channel, or the current channel.") },
