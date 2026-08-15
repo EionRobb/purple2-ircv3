@@ -13,11 +13,16 @@ sudo make install
 ```
 
 ## IRCv3 Support
-* invite-notify (notifies when someone has been invited to a channel)
-* server-time (shows correct message timestamp of relayed messages)
-* echo-message (echoes back messages)
-* labeled-response (help not repeat own-sent messages)
-* message-tags (typing notifications)
-* utf8-only (utf-8 only)
-* metadata-2 (user avatars)
+* [`away-notify`](https://ircv3.net/specs/extensions/away-notify) - instantly notifies when users go away or return
+* [`echo-message`](https://ircv3.net/specs/extensions/echo-message) - echoes back sent messages
+* [`invite-notify`](https://ircv3.net/specs/extensions/invite-notify) - notifies when someone has been invited to a channel
+* [`labeled-response`](https://ircv3.net/specs/extensions/labeled-response) - correlates sent commands with server responses to avoid repeating sent messages
+* [`message-tags`](https://ircv3.net/specs/extensions/message-tags) - typing notifications
+* [`metadata-2`](https://ircv3.net/specs/extensions/metadata) - user avatars / buddy icons
+* [`sasl`](https://ircv3.net/specs/extensions/sasl-3.2) - SASL authentication support
+* [`server-time`](https://ircv3.net/specs/extensions/server-time) - shows correct message timestamp of relayed messages
+* [`sts`](https://ircv3.net/specs/extensions/sts) - Strict Transport Security policy enforcement
+* [`utf8-only`](https://ircv3.net/specs/extensions/utf8-only) - UTF-8 encoding enforcement
+* [`whox`](https://ircv3.net/specs/extensions/whox) - extended WHO queries for efficient user status/account retrieval
+
 
