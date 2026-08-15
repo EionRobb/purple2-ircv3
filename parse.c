@@ -131,6 +131,7 @@ static struct _irc_msg {
 	{ "away", ":", 0, irc_msg_away_notify },		 /* Away notification (IRCv3)	*/
 	{ "batch", ":", 1, irc_msg_batch },			 /* Batch notification (IRCv3)	*/
 	{ "cap", "vv:", 3, irc_msg_cap },			 /* Capabilities negotiation		*/
+	{ "chghost", "vv", 2, irc_msg_chghost },		 /* Host/ident change (IRCv3)	*/
 	{ "invite", "n:", 2, irc_msg_invite },		 /* Invited			*/
 	{ "join", ":", 1, irc_msg_join },			 /* Joined a channel		*/
 	{ "kick", "cn:", 3, irc_msg_kick },			 /* KICK				*/

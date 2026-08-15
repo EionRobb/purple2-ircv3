@@ -153,6 +153,7 @@ struct irc_conn {
 	gboolean cap_extended_join;
 	gboolean cap_account_notify;
 	gboolean cap_account_tag;
+	gboolean cap_chghost;
 	gboolean cap_batch;
 	gboolean cap_chathistory;
 	guint chathistory_limit;
@@ -229,6 +230,8 @@ void
 irc_msg_away_notify(struct irc_conn *irc, const char *name, const char *from, char **args);
 void
 irc_msg_account(struct irc_conn *irc, const char *name, const char *from, char **args);
+void
+irc_msg_chghost(struct irc_conn *irc, const char *name, const char *from, char **args);
 void
 irc_msg_badmode(struct irc_conn *irc, const char *name, const char *from, char **args);
 void
