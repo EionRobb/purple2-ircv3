@@ -1093,41 +1093,72 @@ irc_msg_join(struct irc_conn *irc, const char *name, const char *from, char **ar
 	PurpleConvChatBuddy *cb;
 
 	char *nick, *userhost;
+	char *chan = NULL, *account = NULL, *realname = NULL;
+	char *p, *space;
 	struct irc_buddy *ib;
 	static int id = 1;
 
 	g_return_if_fail(gc);
 
+	p = args[0];
+	space = strchr(p, ' ');
+	if (space != NULL) {
+		chan = g_strndup(p, space - p);
+		p = space + 1;
+		while (*p == ' ') p++;
+		space = strchr(p, ' ');
+		if (space != NULL) {
+			account = g_strndup(p, space - p);
+			p = space + 1;
+			while (*p == ' ') p++;
+			if (*p == ':') p++;
+			realname = g_strdup(p);
+		} else {
+			account = g_strdup(p);
+		}
+	} else {
+		chan = g_strdup(p);
+	}
+
 	nick = irc_mask_nick(from);
 
 	if (!purple_utf8_strcasecmp(nick, purple_connection_get_display_name(gc))) {
 		/* We are joining a channel for the first time */
-		serv_got_joined_chat(gc, id++, args[0]);
+		serv_got_joined_chat(gc, id++, chan);
 		g_free(nick);
 		convo = purple_find_conversation_with_account(PURPLE_CONV_TYPE_CHAT,
-													  args[0],
+													  chan,
 													  irc->account);
 
 		if (convo == NULL) {
-			purple_debug_error("irc", "tried to join %s but couldn't\n", args[0]);
+			purple_debug_error("irc", "tried to join %s but couldn't\n", chan);
+			g_free(chan);
+			g_free(account);
+			g_free(realname);
 			return;
 		}
 		purple_conversation_set_data(convo, IRC_NAMES_FLAG, GINT_TO_POINTER(FALSE));
 
 		// Get the real name and user host for all participants.
-		irc_send_who(irc, args[0]);
+		irc_send_who(irc, chan);
 
 		/* Until purple_conversation_present does something that
 		 * one would expect in Pidgin, this call produces buggy
 		 * behavior both for the /join and auto-join cases. */
 		/* purple_conversation_present(convo); */
+		g_free(chan);
+		g_free(account);
+		g_free(realname);
 		return;
 	}
 
-	convo = purple_find_conversation_with_account(PURPLE_CONV_TYPE_CHAT, args[0], irc->account);
+	convo = purple_find_conversation_with_account(PURPLE_CONV_TYPE_CHAT, chan, irc->account);
 	if (convo == NULL) {
-		purple_debug(PURPLE_DEBUG_ERROR, "irc", "JOIN for %s failed\n", args[0]);
+		purple_debug(PURPLE_DEBUG_ERROR, "irc", "JOIN for %s failed\n", chan);
 		g_free(nick);
+		g_free(chan);
+		g_free(account);
+		g_free(realname);
 		return;
 	}
 
@@ -1139,7 +1170,23 @@ irc_msg_join(struct irc_conn *irc, const char *name, const char *from, char **ar
 	cb = purple_conv_chat_cb_find(chat, nick);
 
 	if (cb) {
-		purple_conv_chat_cb_set_attribute(chat, cb, "userhost", userhost);
+		GList *keys = NULL, *values = NULL;
+
+		keys = g_list_prepend(keys, "userhost");
+		values = g_list_prepend(values, userhost);
+
+		if (realname && *realname) {
+			keys = g_list_prepend(keys, "realname");
+			values = g_list_prepend(values, realname);
+		}
+		if (account && strcmp(account, "*") != 0) {
+			keys = g_list_prepend(keys, "account");
+			values = g_list_prepend(values, account);
+		}
+
+		purple_conv_chat_cb_set_attributes(chat, cb, keys, values);
+		g_list_free(keys);
+		g_list_free(values);
 	}
 
 	if ((ib = g_hash_table_lookup(irc->buddies, nick)) != NULL) {
@@ -1149,6 +1196,9 @@ irc_msg_join(struct irc_conn *irc, const char *name, const char *from, char **ar
 
 	g_free(userhost);
 	g_free(nick);
+	g_free(chan);
+	g_free(account);
+	g_free(realname);
 }
 
 void
@@ -1976,6 +2026,8 @@ irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **arg
 				g_string_append(req, "invite-notify ");
 			} else if (strcmp(cap_array[i], "away-notify") == 0) {
 				g_string_append(req, "away-notify ");
+			} else if (strcmp(cap_array[i], "extended-join") == 0) {
+				g_string_append(req, "extended-join ");
 			} else if (strcmp(cap_array[i], "draft/metadata-2") == 0) {
 				g_string_append(req, "draft/metadata-2 ");
 			} else if (strcmp(cap_array[i], "sts") == 0 || strncmp(cap_array[i], "sts=", 4) == 0) {
@@ -2011,6 +2063,8 @@ irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **arg
 				irc->cap_labeled_response = FALSE;
 			} else if (strcmp(cap_array[i], "away-notify") == 0) {
 				irc->cap_away_notify = FALSE;
+			} else if (strcmp(cap_array[i], "extended-join") == 0) {
+				irc->cap_extended_join = FALSE;
 			} else if (strcmp(cap_array[i], "draft/metadata-2") == 0) {
 				irc->cap_metadata_2 = FALSE;
 			}
@@ -2026,6 +2080,8 @@ irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **arg
 				irc->cap_labeled_response = TRUE;
 			} else if (strcmp(cap_array[i], "away-notify") == 0) {
 				irc->cap_away_notify = TRUE;
+			} else if (strcmp(cap_array[i], "extended-join") == 0) {
+				irc->cap_extended_join = TRUE;
 			} else if (strcmp(cap_array[i], "draft/metadata-2") == 0) {
 				irc->cap_metadata_2 = TRUE;
 			} else if (strcmp(cap_array[i], "sts") == 0 || strncmp(cap_array[i], "sts=", 4) == 0) {
@@ -2046,6 +2102,8 @@ irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **arg
 				irc->cap_labeled_response = TRUE;
 			} else if (strcmp(cap_array[i], "away-notify") == 0) {
 				irc->cap_away_notify = TRUE;
+			} else if (strcmp(cap_array[i], "extended-join") == 0) {
+				irc->cap_extended_join = TRUE;
 			} else if (strcmp(cap_array[i], "draft/metadata-2") == 0) {
 				irc->cap_metadata_2 = TRUE;
 			}

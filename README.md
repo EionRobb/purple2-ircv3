@@ -15,6 +15,7 @@ sudo make install
 ## IRCv3 Support
 * [`away-notify`](https://ircv3.net/specs/extensions/away-notify) - instantly notifies when users go away or return
 * [`echo-message`](https://ircv3.net/specs/extensions/echo-message) - echoes back sent messages
+* [`extended-join`](https://ircv3.net/specs/extensions/extended-join) - includes account name and realname in JOIN notifications
 * [`invite-notify`](https://ircv3.net/specs/extensions/invite-notify) - notifies when someone has been invited to a channel
 * [`labeled-response`](https://ircv3.net/specs/extensions/labeled-response) - correlates sent commands with server responses to avoid repeating sent messages
 * [`message-tags`](https://ircv3.net/specs/extensions/message-tags) - typing notifications

@@ -150,6 +150,7 @@ struct irc_conn {
 	gboolean cap_labeled_response;
 	gboolean cap_metadata_2;
 	gboolean cap_away_notify;
+	gboolean cap_extended_join;
 	gboolean whox_supported;
 	GHashTable *sent_messages;
 	guint next_msg_id;
