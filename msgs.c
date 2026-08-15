@@ -1614,6 +1614,22 @@ irc_msg_handle_privmsg(struct irc_conn *irc, const char *name, const char *from,
 			} else if (g_str_has_prefix(tags[i], "time=")) {
 				time_tag = tags[i] + 5; // Skip "time="
 				now = purple_str_to_time(time_tag, TRUE, NULL, NULL, NULL);
+			} else if (g_str_has_prefix(tags[i], "account=")) {
+				const gchar *acc_str = tags[i] + 8; // Skip "account="
+				if (acc_str && *acc_str) {
+					PurpleBuddy *buddy = purple_find_buddy(irc->account, nick);
+					if (buddy) {
+						purple_blist_node_set_string(PURPLE_BLIST_NODE(buddy), "account", acc_str);
+					}
+					convo = purple_find_conversation_with_account(PURPLE_CONV_TYPE_CHAT, irc_nick_skip_mode(irc, to), irc->account);
+					if (convo) {
+						PurpleConvChat *chat = PURPLE_CONV_CHAT(convo);
+						PurpleConvChatBuddy *cb = purple_conv_chat_cb_find(chat, nick);
+						if (cb) {
+							purple_conv_chat_cb_set_attribute(chat, cb, "account", acc_str);
+						}
+					}
+				}
 			}
 		}
 		g_strfreev(tags);
@@ -2113,6 +2129,8 @@ irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **arg
 				g_string_append(req, "extended-join ");
 			} else if (strcmp(cap_array[i], "account-notify") == 0) {
 				g_string_append(req, "account-notify ");
+			} else if (strcmp(cap_array[i], "account-tag") == 0) {
+				g_string_append(req, "account-tag ");
 			} else if (strcmp(cap_array[i], "batch") == 0) {
 				g_string_append(req, "batch ");
 			} else if (strcmp(cap_array[i], "draft/chathistory") == 0 || strcmp(cap_array[i], "chathistory") == 0) {
@@ -2156,6 +2174,8 @@ irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **arg
 				irc->cap_extended_join = FALSE;
 			} else if (strcmp(cap_array[i], "account-notify") == 0) {
 				irc->cap_account_notify = FALSE;
+			} else if (strcmp(cap_array[i], "account-tag") == 0) {
+				irc->cap_account_tag = FALSE;
 			} else if (strcmp(cap_array[i], "batch") == 0) {
 				irc->cap_batch = FALSE;
 			} else if (strcmp(cap_array[i], "draft/chathistory") == 0 || strcmp(cap_array[i], "chathistory") == 0) {
@@ -2179,6 +2199,8 @@ irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **arg
 				irc->cap_extended_join = TRUE;
 			} else if (strcmp(cap_array[i], "account-notify") == 0) {
 				irc->cap_account_notify = TRUE;
+			} else if (strcmp(cap_array[i], "account-tag") == 0) {
+				irc->cap_account_tag = TRUE;
 			} else if (strcmp(cap_array[i], "batch") == 0) {
 				irc->cap_batch = TRUE;
 			} else if (strcmp(cap_array[i], "draft/chathistory") == 0 || strcmp(cap_array[i], "chathistory") == 0) {
@@ -2207,6 +2229,8 @@ irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **arg
 				irc->cap_extended_join = TRUE;
 			} else if (strcmp(cap_array[i], "account-notify") == 0) {
 				irc->cap_account_notify = TRUE;
+			} else if (strcmp(cap_array[i], "account-tag") == 0) {
+				irc->cap_account_tag = TRUE;
 			} else if (strcmp(cap_array[i], "batch") == 0) {
 				irc->cap_batch = TRUE;
 			} else if (strcmp(cap_array[i], "draft/chathistory") == 0 || strcmp(cap_array[i], "chathistory") == 0) {

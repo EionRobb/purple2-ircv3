@@ -152,6 +152,7 @@ struct irc_conn {
 	gboolean cap_away_notify;
 	gboolean cap_extended_join;
 	gboolean cap_account_notify;
+	gboolean cap_account_tag;
 	gboolean cap_batch;
 	gboolean cap_chathistory;
 	guint chathistory_limit;
