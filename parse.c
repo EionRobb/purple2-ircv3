@@ -127,6 +127,7 @@ static struct _irc_msg {
 	{ "907", "*", 0, irc_msg_authfail },			  /* SASL auth failed		*/
 	{ "authenticate", ":", 1, irc_msg_authenticate }, /* SASL authenticate		*/
 #endif
+	{ "account", ":", 1, irc_msg_account },		 /* Account notification (IRCv3)	*/
 	{ "away", ":", 0, irc_msg_away_notify },		 /* Away notification (IRCv3)	*/
 	{ "batch", ":", 1, irc_msg_batch },			 /* Batch notification (IRCv3)	*/
 	{ "cap", "vv:", 3, irc_msg_cap },			 /* Capabilities negotiation		*/

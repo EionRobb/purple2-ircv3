@@ -13,6 +13,7 @@ sudo make install
 ```
 
 ## IRCv3 Support
+* [`account-notify`](https://ircv3.net/specs/extensions/account-notify) - notifies when users log in or out of services accounts
 * [`away-notify`](https://ircv3.net/specs/extensions/away-notify) - instantly notifies when users go away or return
 * [`batch`](https://ircv3.net/specs/extensions/batch) - groups related server messages together
 * [`chathistory`](https://ircv3.net/specs/extensions/chathistory) - requests message history / backscroll from servers and bouncers

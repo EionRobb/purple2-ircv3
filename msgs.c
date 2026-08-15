@@ -316,6 +316,44 @@ irc_msg_away_notify(struct irc_conn *irc, const char *name, const char *from, ch
 }
 
 void
+irc_msg_account(struct irc_conn *irc, const char *name, const char *from, char **args)
+{
+	PurpleConnection *gc;
+	char *nick;
+	const char *accountname;
+	GSList *chats;
+
+	gc = purple_account_get_connection(irc->account);
+	if (!gc || !from || !args || !args[0])
+		return;
+
+	nick = irc_mask_nick(from);
+	if (!nick)
+		return;
+
+	accountname = args[0];
+
+	chats = gc->buddy_chats;
+	while (chats) {
+		PurpleConvChat *chat = PURPLE_CONV_CHAT(chats->data);
+		PurpleConvChatBuddy *cb = purple_conv_chat_cb_find(chat, nick);
+		if (cb) {
+			const char *val = (accountname && strcmp(accountname, "*") != 0) ? accountname : NULL;
+			purple_conv_chat_cb_set_attribute(chat, cb, "account", val);
+		}
+		chats = chats->next;
+	}
+
+	PurpleBuddy *buddy = purple_find_buddy(irc->account, nick);
+	if (buddy) {
+		const char *val = (accountname && strcmp(accountname, "*") != 0) ? accountname : NULL;
+		purple_blist_node_set_string(PURPLE_BLIST_NODE(buddy), "account", val);
+	}
+
+	g_free(nick);
+}
+
+void
 irc_msg_badmode(struct irc_conn *irc, const char *name, const char *from, char **args)
 {
 	PurpleConnection *gc = purple_account_get_connection(irc->account);
@@ -651,6 +689,13 @@ irc_msg_whox(struct irc_conn *irc, const char *name, const char *from, char **ar
 	}
 
 	purple_conv_chat_cb_set_attributes(chat, cb, keys, values);
+
+	if (account && strcmp(account, "0") != 0 && strcmp(account, "*") != 0) {
+		PurpleBuddy *buddy = purple_find_buddy(irc->account, nick);
+		if (buddy) {
+			purple_blist_node_set_string(PURPLE_BLIST_NODE(buddy), "account", account);
+		}
+	}
 
 	g_list_free(keys);
 	g_list_free(values);
@@ -1208,6 +1253,11 @@ irc_msg_join(struct irc_conn *irc, const char *name, const char *from, char **ar
 		purple_conv_chat_cb_set_attributes(chat, cb, keys, values);
 		g_list_free(keys);
 		g_list_free(values);
+	}
+
+	PurpleBuddy *buddy = purple_find_buddy(irc->account, nick);
+	if (buddy && account && strcmp(account, "*") != 0) {
+		purple_blist_node_set_string(PURPLE_BLIST_NODE(buddy), "account", account);
 	}
 
 	if ((ib = g_hash_table_lookup(irc->buddies, nick)) != NULL) {
@@ -2061,6 +2111,8 @@ irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **arg
 				g_string_append(req, "away-notify ");
 			} else if (strcmp(cap_array[i], "extended-join") == 0) {
 				g_string_append(req, "extended-join ");
+			} else if (strcmp(cap_array[i], "account-notify") == 0) {
+				g_string_append(req, "account-notify ");
 			} else if (strcmp(cap_array[i], "batch") == 0) {
 				g_string_append(req, "batch ");
 			} else if (strcmp(cap_array[i], "draft/chathistory") == 0 || strcmp(cap_array[i], "chathistory") == 0) {
@@ -2102,6 +2154,8 @@ irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **arg
 				irc->cap_away_notify = FALSE;
 			} else if (strcmp(cap_array[i], "extended-join") == 0) {
 				irc->cap_extended_join = FALSE;
+			} else if (strcmp(cap_array[i], "account-notify") == 0) {
+				irc->cap_account_notify = FALSE;
 			} else if (strcmp(cap_array[i], "batch") == 0) {
 				irc->cap_batch = FALSE;
 			} else if (strcmp(cap_array[i], "draft/chathistory") == 0 || strcmp(cap_array[i], "chathistory") == 0) {
@@ -2123,6 +2177,8 @@ irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **arg
 				irc->cap_away_notify = TRUE;
 			} else if (strcmp(cap_array[i], "extended-join") == 0) {
 				irc->cap_extended_join = TRUE;
+			} else if (strcmp(cap_array[i], "account-notify") == 0) {
+				irc->cap_account_notify = TRUE;
 			} else if (strcmp(cap_array[i], "batch") == 0) {
 				irc->cap_batch = TRUE;
 			} else if (strcmp(cap_array[i], "draft/chathistory") == 0 || strcmp(cap_array[i], "chathistory") == 0) {
@@ -2149,6 +2205,8 @@ irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **arg
 				irc->cap_away_notify = TRUE;
 			} else if (strcmp(cap_array[i], "extended-join") == 0) {
 				irc->cap_extended_join = TRUE;
+			} else if (strcmp(cap_array[i], "account-notify") == 0) {
+				irc->cap_account_notify = TRUE;
 			} else if (strcmp(cap_array[i], "batch") == 0) {
 				irc->cap_batch = TRUE;
 			} else if (strcmp(cap_array[i], "draft/chathistory") == 0 || strcmp(cap_array[i], "chathistory") == 0) {
