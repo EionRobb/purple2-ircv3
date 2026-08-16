@@ -351,6 +351,15 @@ irc_blist_icon(PurpleAccount *a, PurpleBuddy *b)
 	return "irc";
 }
 
+static const char *
+irc_list_emblem(PurpleBuddy *buddy)
+{
+	if (buddy && purple_blist_node_get_bool(PURPLE_BLIST_NODE(buddy), "bot")) {
+		return "bot";
+	}
+	return NULL;
+}
+
 static GList *
 irc_status_types(PurpleAccount *account)
 {
@@ -1414,6 +1423,7 @@ _init_plugin(PurplePlugin *plugin)
 	prpl_info->protocol_options = NULL;
 	prpl_info->icon_spec = icon_spec;
 	prpl_info->list_icon = irc_blist_icon;
+	prpl_info->list_emblem = irc_list_emblem;
 	prpl_info->status_text = irc_status_text;
 	prpl_info->status_types = irc_status_types;
 	prpl_info->chat_info = irc_chat_join_info;

@@ -1683,6 +1683,19 @@ irc_msg_handle_privmsg(struct irc_conn *irc, const char *name, const char *from,
 						}
 					}
 				}
+			} else if (g_str_has_prefix(tags[i], "bot")) {
+				PurpleBuddy *buddy = purple_find_buddy(irc->account, nick);
+				if (buddy) {
+					purple_blist_node_set_bool(PURPLE_BLIST_NODE(buddy), "bot", TRUE);
+				}
+				convo = purple_find_conversation_with_account(PURPLE_CONV_TYPE_CHAT, irc_nick_skip_mode(irc, to), irc->account);
+				if (convo) {
+					PurpleConvChat *chat = PURPLE_CONV_CHAT(convo);
+					PurpleConvChatBuddy *cb = purple_conv_chat_cb_find(chat, nick);
+					if (cb) {
+						purple_conv_chat_cb_set_attribute(chat, cb, "bot", "TRUE");
+					}
+				}
 			}
 		}
 		g_strfreev(tags);
@@ -2631,5 +2644,18 @@ irc_msg_monfull(struct irc_conn *irc, const char *name, const char *from, char *
 		return;
 
 	purple_debug_warning("irc", "MONITOR list full (limit %s): unable to monitor %s\n", args[1], args[2] ? args[2] : "");
+}
+
+void
+irc_msg_whoisbot(struct irc_conn *irc, const char *name, const char *from, char **args)
+{
+	if (!args || !args[1])
+		return;
+
+	const char *target = args[1];
+	PurpleBuddy *buddy = purple_find_buddy(irc->account, target);
+	if (buddy) {
+		purple_blist_node_set_bool(PURPLE_BLIST_NODE(buddy), "bot", TRUE);
+	}
 }
 

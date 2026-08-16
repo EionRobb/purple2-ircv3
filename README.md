@@ -17,6 +17,7 @@ sudo make install
 * [`account-tag`](https://ircv3.net/specs/extensions/account-tag) - attaches sender account name tag to messages
 * [`away-notify`](https://ircv3.net/specs/extensions/away-notify) - instantly notifies when users go away or return
 * [`batch`](https://ircv3.net/specs/extensions/batch) - groups related server messages together
+* [`bot-mode`](https://ircv3.net/specs/extensions/bot-mode) - marks bot users and displays bot emblems on the buddy list
 * [`chathistory`](https://ircv3.net/specs/extensions/chathistory) - requests message history / backscroll from servers and bouncers
 * [`chghost`](https://ircv3.net/specs/extensions/chghost) - updates user hostnames and idents without synthetic reconnects
 * [`echo-message`](https://ircv3.net/specs/extensions/echo-message) - echoes back sent messages

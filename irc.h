@@ -250,6 +250,8 @@ irc_msg_chanmode(struct irc_conn *irc, const char *name, const char *from, char 
 void
 irc_msg_endwhois(struct irc_conn *irc, const char *name, const char *from, char **args);
 void
+irc_msg_whoisbot(struct irc_conn *irc, const char *name, const char *from, char **args);
+void
 irc_msg_features(struct irc_conn *irc, const char *name, const char *from, char **args);
 void
 irc_msg_invite(struct irc_conn *irc, const char *name, const char *from, char **args);
