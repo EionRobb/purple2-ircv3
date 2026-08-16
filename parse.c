@@ -118,6 +118,11 @@ static struct _irc_msg {
 	{ "501", "n:", 2, irc_msg_badmode },	   /* Unknown mode flag		*/
 	{ "506", "nc:", 3, irc_msg_nosend },	   /* Must identify to send	*/
 	{ "515", "nc:", 3, irc_msg_regonly },	   /* Registration required	*/
+	{ "730", "n:", 2, irc_msg_mononline },	   /* RPL_MONONLINE (IRCv3)	*/
+	{ "731", "n:", 2, irc_msg_monoffline },	   /* RPL_MONOFFLINE (IRCv3)	*/
+	{ "732", "n:", 2, irc_msg_monlist },	   /* RPL_MONLIST (IRCv3)	*/
+	{ "733", "n:", 1, irc_msg_ignore },	   /* RPL_ENDOFMONLIST (IRCv3)	*/
+	{ "734", "nvv:", 3, irc_msg_monfull },	   /* ERR_MONLISTFULL (IRCv3)	*/
 	{ "761", "nvvv:", 5, irc_msg_metadata },   /* RPL_KEYVALUE metadata     */
 #ifdef HAVE_CYRUS_SASL
 	{ "903", "*", 0, irc_msg_authok },				  /* SASL auth successful		*/

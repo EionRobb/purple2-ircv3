@@ -158,6 +158,9 @@ struct irc_conn {
 	gboolean cap_chathistory;
 	guint chathistory_limit;
 	gboolean whox_supported;
+	gboolean monitor_supported;
+	gboolean cap_extended_monitor;
+	guint monitor_limit;
 	GHashTable *sent_messages;
 	GHashTable *last_msg_times;
 	guint next_msg_id;
@@ -402,6 +405,17 @@ void
 irc_set_last_msg_time(struct irc_conn *irc, const char *target, const char *iso_timestamp);
 const char *
 irc_get_last_msg_time(struct irc_conn *irc, const char *target);
+
+void
+irc_msg_mononline(struct irc_conn *irc, const char *name, const char *from, char **args);
+void
+irc_msg_monoffline(struct irc_conn *irc, const char *name, const char *from, char **args);
+void
+irc_msg_monlist(struct irc_conn *irc, const char *name, const char *from, char **args);
+void
+irc_msg_monfull(struct irc_conn *irc, const char *name, const char *from, char **args);
+void
+irc_send_monitor_add_all(struct irc_conn *irc);
 
 unsigned int
 irc_send_typing(PurpleConnection *gc, const char *name, PurpleTypingState state);

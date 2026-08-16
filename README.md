@@ -21,10 +21,12 @@ sudo make install
 * [`chghost`](https://ircv3.net/specs/extensions/chghost) - updates user hostnames and idents without synthetic reconnects
 * [`echo-message`](https://ircv3.net/specs/extensions/echo-message) - echoes back sent messages
 * [`extended-join`](https://ircv3.net/specs/extensions/extended-join) - includes account name and realname in JOIN notifications
+* [`extended-monitor`](https://ircv3.net/specs/extensions/extended-monitor) - extends MONITOR to push away, account, and host changes for monitored contacts
 * [`invite-notify`](https://ircv3.net/specs/extensions/invite-notify) - notifies when someone has been invited to a channel
 * [`labeled-response`](https://ircv3.net/specs/extensions/labeled-response) - correlates sent commands with server responses to avoid repeating sent messages
 * [`message-tags`](https://ircv3.net/specs/extensions/message-tags) - typing notifications
 * [`metadata-2`](https://ircv3.net/specs/extensions/metadata) - user avatars / buddy icons
+* [`monitor`](https://ircv3.net/specs/extensions/monitor) - server-side buddy list presence monitoring
 * [`sasl`](https://ircv3.net/specs/extensions/sasl-3.2) - SASL authentication support
 * [`server-time`](https://ircv3.net/specs/extensions/server-time) - shows correct message timestamp of relayed messages
 * [`sts`](https://ircv3.net/specs/extensions/sts) - Strict Transport Security policy enforcement

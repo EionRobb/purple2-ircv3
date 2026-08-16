@@ -234,6 +234,12 @@ irc_msg_features(struct irc_conn *irc, const char *name, const char *from, char 
 			irc->chathistory_limit = atoi(features[i] + 12);
 		} else if (strcmp(features[i], "CHATHISTORY") == 0) {
 			irc->chathistory_limit = 50;
+		} else if (strncmp(features[i], "MONITOR=", 8) == 0) {
+			irc->monitor_supported = TRUE;
+			irc->monitor_limit = atoi(features[i] + 8);
+		} else if (strcmp(features[i], "MONITOR") == 0) {
+			irc->monitor_supported = TRUE;
+			irc->monitor_limit = 0;
 		}
 	}
 
@@ -2180,6 +2186,8 @@ irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **arg
 				g_string_append(req, "account-tag ");
 			} else if (strcmp(cap_array[i], "chghost") == 0) {
 				g_string_append(req, "chghost ");
+			} else if (strcmp(cap_array[i], "extended-monitor") == 0 || strcmp(cap_array[i], "draft/extended-monitor") == 0) {
+				g_string_append(req, "extended-monitor ");
 			} else if (strcmp(cap_array[i], "batch") == 0) {
 				g_string_append(req, "batch ");
 			} else if (strcmp(cap_array[i], "draft/chathistory") == 0 || strcmp(cap_array[i], "chathistory") == 0) {
@@ -2227,6 +2235,8 @@ irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **arg
 				irc->cap_account_tag = FALSE;
 			} else if (strcmp(cap_array[i], "chghost") == 0) {
 				irc->cap_chghost = FALSE;
+			} else if (strcmp(cap_array[i], "extended-monitor") == 0 || strcmp(cap_array[i], "draft/extended-monitor") == 0) {
+				irc->cap_extended_monitor = FALSE;
 			} else if (strcmp(cap_array[i], "batch") == 0) {
 				irc->cap_batch = FALSE;
 			} else if (strcmp(cap_array[i], "draft/chathistory") == 0 || strcmp(cap_array[i], "chathistory") == 0) {
@@ -2254,6 +2264,8 @@ irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **arg
 				irc->cap_account_tag = TRUE;
 			} else if (strcmp(cap_array[i], "chghost") == 0) {
 				irc->cap_chghost = TRUE;
+			} else if (strcmp(cap_array[i], "extended-monitor") == 0 || strcmp(cap_array[i], "draft/extended-monitor") == 0) {
+				irc->cap_extended_monitor = TRUE;
 			} else if (strcmp(cap_array[i], "batch") == 0) {
 				irc->cap_batch = TRUE;
 			} else if (strcmp(cap_array[i], "draft/chathistory") == 0 || strcmp(cap_array[i], "chathistory") == 0) {
@@ -2286,6 +2298,8 @@ irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **arg
 				irc->cap_account_tag = TRUE;
 			} else if (strcmp(cap_array[i], "chghost") == 0) {
 				irc->cap_chghost = TRUE;
+			} else if (strcmp(cap_array[i], "extended-monitor") == 0 || strcmp(cap_array[i], "draft/extended-monitor") == 0) {
+				irc->cap_extended_monitor = TRUE;
 			} else if (strcmp(cap_array[i], "batch") == 0) {
 				irc->cap_batch = TRUE;
 			} else if (strcmp(cap_array[i], "draft/chathistory") == 0 || strcmp(cap_array[i], "chathistory") == 0) {
@@ -2500,5 +2514,122 @@ irc_msg_batch(struct irc_conn *irc, const char *name, const char *from, char **a
 		return;
 
 	purple_debug_info("irc", "Received BATCH: %s\n", args[0]);
+}
+
+void
+irc_msg_mononline(struct irc_conn *irc, const char *name, const char *from, char **args)
+{
+	gchar **targets;
+	int i;
+
+	if (!args || !args[1])
+		return;
+
+	targets = g_strsplit(args[1], ",", -1);
+	for (i = 0; targets[i] != NULL; i++) {
+		char *target = g_strstrip(targets[i]);
+		char *nick, *userhost = NULL;
+		char *excl;
+
+		if (!*target)
+			continue;
+
+		excl = strchr(target, '!');
+		if (excl) {
+			*excl = '\0';
+			nick = target;
+			userhost = excl + 1;
+		} else {
+			nick = target;
+		}
+
+		purple_prpl_got_user_status(irc->account, nick, "available", NULL);
+
+		struct irc_buddy *ib = g_hash_table_lookup(irc->buddies, nick);
+		if (ib) {
+			ib->online = TRUE;
+		}
+
+		if (userhost && *userhost) {
+			PurpleBuddy *buddy = purple_find_buddy(irc->account, nick);
+			if (buddy) {
+				purple_blist_node_set_string(PURPLE_BLIST_NODE(buddy), "userhost", userhost);
+			}
+		}
+	}
+	g_strfreev(targets);
+}
+
+void
+irc_msg_monoffline(struct irc_conn *irc, const char *name, const char *from, char **args)
+{
+	gchar **targets;
+	int i;
+
+	if (!args || !args[1])
+		return;
+
+	targets = g_strsplit(args[1], ",", -1);
+	for (i = 0; targets[i] != NULL; i++) {
+		char *nick = g_strstrip(targets[i]);
+		if (!*nick)
+			continue;
+
+		purple_prpl_got_user_status(irc->account, nick, "offline", NULL);
+
+		struct irc_buddy *ib = g_hash_table_lookup(irc->buddies, nick);
+		if (ib) {
+			ib->online = FALSE;
+		}
+	}
+	g_strfreev(targets);
+}
+
+static void
+irc_monitor_add_cb(char *name, struct irc_buddy *ib, GString *str)
+{
+	if (!ib || !ib->name)
+		return;
+	if (str->len > 0)
+		g_string_append_c(str, ',');
+	g_string_append(str, ib->name);
+}
+
+void
+irc_send_monitor_add_all(struct irc_conn *irc)
+{
+	GString *str;
+	char *buf;
+
+	if (!irc || !irc->monitor_supported || !irc->buddies)
+		return;
+
+	str = g_string_new("");
+	g_hash_table_foreach(irc->buddies, (GHFunc) irc_monitor_add_cb, str);
+
+	if (str->len > 0) {
+		buf = irc_format(irc, "v:", "MONITOR", "+", str->str);
+		irc_send(irc, buf);
+		g_free(buf);
+	}
+	g_string_free(str, TRUE);
+}
+
+void
+irc_msg_monlist(struct irc_conn *irc, const char *name, const char *from, char **args)
+{
+	if (!args || !args[1])
+		return;
+
+	purple_debug_info("irc", "MONITOR list: %s\n", args[1]);
+}
+
+void
+irc_msg_monfull(struct irc_conn *irc, const char *name, const char *from, char **args)
+{
+	if (!args || !args[1])
+		return;
+
+	purple_debug_warning("irc", "MONITOR list full (limit %s): unable to monitor %s\n", args[1], args[2] ? args[2] : "");
 }
 

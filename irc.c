@@ -260,6 +260,11 @@ irc_send_len(struct irc_conn *irc, const char *buf, int buflen)
 gboolean
 irc_blist_timeout(struct irc_conn *irc)
 {
+	if (irc->monitor_supported) {
+		irc_send_monitor_add_all(irc);
+		return TRUE;
+	}
+
 	if (irc->ison_outstanding) {
 		return TRUE;
 	}
@@ -817,7 +822,13 @@ irc_add_buddy(PurpleConnection *gc, PurpleBuddy *buddy, PurpleGroup *group)
 	 * someone's online asap */
 	if (irc->timer) {
 		irc_send_who(irc, bname);
-		irc_ison_one(irc, ib);
+		if (irc->monitor_supported) {
+			char *buf = irc_format(irc, "v:", "MONITOR", "+", bname);
+			irc_send(irc, buf);
+			g_free(buf);
+		} else {
+			irc_ison_one(irc, ib);
+		}
 	}
 }
 
@@ -829,6 +840,11 @@ irc_remove_buddy(PurpleConnection *gc, PurpleBuddy *buddy, PurpleGroup *group)
 
 	ib = g_hash_table_lookup(irc->buddies, purple_buddy_get_name(buddy));
 	if (ib && --ib->ref == 0) {
+		if (irc->monitor_supported) {
+			char *buf = irc_format(irc, "v:", "MONITOR", "-", purple_buddy_get_name(buddy));
+			irc_send(irc, buf);
+			g_free(buf);
+		}
 		g_hash_table_remove(irc->buddies, purple_buddy_get_name(buddy));
 	}
 }
