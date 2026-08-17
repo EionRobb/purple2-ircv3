@@ -28,6 +28,7 @@ sudo make install
 * [`message-tags`](https://ircv3.net/specs/extensions/message-tags) - typing notifications
 * [`metadata-2`](https://ircv3.net/specs/extensions/metadata) - user avatars / buddy icons
 * [`monitor`](https://ircv3.net/specs/extensions/monitor) - server-side buddy list presence monitoring
+* [`multiline`](https://ircv3.net/specs/extensions/multiline) - supports multiline message batches with embedded newlines (draft)
 * [`sasl`](https://ircv3.net/specs/extensions/sasl-3.2) - SASL authentication support
 * [`server-time`](https://ircv3.net/specs/extensions/server-time) - shows correct message timestamp of relayed messages
 * [`sts`](https://ircv3.net/specs/extensions/sts) - Strict Transport Security policy enforcement

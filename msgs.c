@@ -1696,6 +1696,34 @@ irc_msg_handle_privmsg(struct irc_conn *irc, const char *name, const char *from,
 						purple_conv_chat_cb_set_attribute(chat, cb, "bot", "TRUE");
 					}
 				}
+			} else if (g_str_has_prefix(tags[i], "batch=")) {
+				const char *batch_ref = tags[i] + 6;
+				struct irc_batch *batch = g_hash_table_lookup(irc->active_batches, batch_ref);
+				if (batch && (g_strcmp0(batch->type, "draft/multiline") == 0 || g_strcmp0(batch->type, "multiline") == 0)) {
+					gboolean has_concat = FALSE;
+					int j;
+					for (j = 0; tags[j] != NULL; j++) {
+						if (g_strcmp0(tags[j], "draft/multiline-concat") == 0 || g_strcmp0(tags[j], "multiline-concat") == 0) {
+							has_concat = TRUE;
+							break;
+						}
+					}
+					if (!batch->from)
+						batch->from = g_strdup(nick);
+
+					if (batch->last_concat) {
+						g_string_append(batch->content, rawmsg);
+					} else {
+						if (batch->content->len > 0)
+							g_string_append_c(batch->content, '\n');
+						g_string_append(batch->content, rawmsg);
+					}
+					batch->last_concat = has_concat;
+
+					g_strfreev(tags);
+					g_free(nick);
+					return;
+				}
 			}
 		}
 		g_strfreev(tags);
@@ -2201,6 +2229,21 @@ irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **arg
 				g_string_append(req, "chghost ");
 			} else if (strcmp(cap_array[i], "extended-monitor") == 0 || strcmp(cap_array[i], "draft/extended-monitor") == 0) {
 				g_string_append(req, "extended-monitor ");
+			} else if (g_str_has_prefix(cap_array[i], "draft/multiline") || g_str_has_prefix(cap_array[i], "multiline")) {
+				g_string_append(req, "draft/multiline ");
+				const char *opts = strchr(cap_array[i], '=');
+				if (opts) {
+					gchar **kv = g_strsplit(opts + 1, ",", -1);
+					int k;
+					for (k = 0; kv[k] != NULL; k++) {
+						if (strncmp(kv[k], "max-bytes=", 10) == 0) {
+							irc->multiline_max_bytes = atoi(kv[k] + 10);
+						} else if (strncmp(kv[k], "max-lines=", 10) == 0) {
+							irc->multiline_max_lines = atoi(kv[k] + 10);
+						}
+					}
+					g_strfreev(kv);
+				}
 			} else if (strcmp(cap_array[i], "batch") == 0) {
 				g_string_append(req, "batch ");
 			} else if (strcmp(cap_array[i], "draft/chathistory") == 0 || strcmp(cap_array[i], "chathistory") == 0) {
@@ -2250,6 +2293,8 @@ irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **arg
 				irc->cap_chghost = FALSE;
 			} else if (strcmp(cap_array[i], "extended-monitor") == 0 || strcmp(cap_array[i], "draft/extended-monitor") == 0) {
 				irc->cap_extended_monitor = FALSE;
+			} else if (g_str_has_prefix(cap_array[i], "draft/multiline") || g_str_has_prefix(cap_array[i], "multiline")) {
+				irc->cap_multiline = FALSE;
 			} else if (strcmp(cap_array[i], "batch") == 0) {
 				irc->cap_batch = FALSE;
 			} else if (strcmp(cap_array[i], "draft/chathistory") == 0 || strcmp(cap_array[i], "chathistory") == 0) {
@@ -2279,6 +2324,8 @@ irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **arg
 				irc->cap_chghost = TRUE;
 			} else if (strcmp(cap_array[i], "extended-monitor") == 0 || strcmp(cap_array[i], "draft/extended-monitor") == 0) {
 				irc->cap_extended_monitor = TRUE;
+			} else if (g_str_has_prefix(cap_array[i], "draft/multiline") || g_str_has_prefix(cap_array[i], "multiline")) {
+				irc->cap_multiline = TRUE;
 			} else if (strcmp(cap_array[i], "batch") == 0) {
 				irc->cap_batch = TRUE;
 			} else if (strcmp(cap_array[i], "draft/chathistory") == 0 || strcmp(cap_array[i], "chathistory") == 0) {
@@ -2313,6 +2360,8 @@ irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **arg
 				irc->cap_chghost = TRUE;
 			} else if (strcmp(cap_array[i], "extended-monitor") == 0 || strcmp(cap_array[i], "draft/extended-monitor") == 0) {
 				irc->cap_extended_monitor = TRUE;
+			} else if (g_str_has_prefix(cap_array[i], "draft/multiline") || g_str_has_prefix(cap_array[i], "multiline")) {
+				irc->cap_multiline = TRUE;
 			} else if (strcmp(cap_array[i], "batch") == 0) {
 				irc->cap_batch = TRUE;
 			} else if (strcmp(cap_array[i], "draft/chathistory") == 0 || strcmp(cap_array[i], "chathistory") == 0) {
@@ -2527,6 +2576,51 @@ irc_msg_batch(struct irc_conn *irc, const char *name, const char *from, char **a
 		return;
 
 	purple_debug_info("irc", "Received BATCH: %s\n", args[0]);
+
+	if (args[0][0] == '+') {
+		gchar **tokens = g_strsplit(args[0], " ", -1);
+		if (tokens[0] && tokens[1]) {
+			const char *ref = tokens[0] + 1;
+			const char *type = tokens[1];
+			const char *target = tokens[2];
+
+			if (g_strcmp0(type, "draft/multiline") == 0 || g_strcmp0(type, "multiline") == 0) {
+				struct irc_batch *batch = g_new0(struct irc_batch, 1);
+				batch->ref = g_strdup(ref);
+				batch->type = g_strdup(type);
+				batch->target = g_strdup(target);
+				if (from)
+					batch->from = irc_mask_nick(from);
+				batch->content = g_string_new("");
+				g_hash_table_replace(irc->active_batches, g_strdup(ref), batch);
+			}
+		}
+		g_strfreev(tokens);
+	} else if (args[0][0] == '-') {
+		const char *ref = args[0] + 1;
+		struct irc_batch *batch = g_hash_table_lookup(irc->active_batches, ref);
+		if (batch) {
+			if (g_strcmp0(batch->type, "draft/multiline") == 0 || g_strcmp0(batch->type, "multiline") == 0) {
+				PurpleConnection *gc = purple_account_get_connection(irc->account);
+				if (gc && batch->content && batch->target) {
+					char *nick = batch->from ? batch->from : g_strdup("");
+					time_t now = time(NULL);
+					char *msg = irc_mirc2html(batch->content->str);
+					if (irc_ischannel(batch->target)) {
+						PurpleConversation *convo = purple_find_conversation_with_account(PURPLE_CONV_TYPE_CHAT, batch->target, irc->account);
+						if (convo) {
+							serv_got_chat_in(gc, purple_conv_chat_get_id(PURPLE_CONV_CHAT(convo)), nick, PURPLE_MESSAGE_RECV, msg, now);
+						}
+					} else {
+						serv_got_im(gc, nick, msg, PURPLE_MESSAGE_RECV, now);
+					}
+					g_free(msg);
+					if (batch->from) g_free(nick);
+				}
+			}
+			g_hash_table_remove(irc->active_batches, ref);
+		}
+	}
 }
 
 void

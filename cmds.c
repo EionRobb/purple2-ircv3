@@ -449,6 +449,73 @@ irc_cmd_privmsg(struct irc_conn *irc, const char *cmd, const char *target, const
 
 	max_privmsg_arg_len = IRC_MAX_MSG_SIZE - strlen(args[0]) - 64;
 	salvaged = purple_utf8_salvage(args[1]);
+
+	if (irc->cap_multiline && irc->cap_batch &&
+		(strchr(salvaged, '\n') != NULL || (int)strlen(salvaged) > max_privmsg_arg_len)) {
+		char *batch_id = g_strdup_printf("ml%u", irc->next_msg_id++);
+		char *batch_ref = g_strdup_printf("+%s", batch_id);
+		char *start_buf = irc_format(irc, "vvv:", "BATCH", batch_ref, "draft/multiline", args[0]);
+		g_free(batch_ref);
+
+		if (irc->cap_labeled_response) {
+			gchar *temp;
+			gchar *label = g_strdup_printf("msg-%u", irc->next_msg_id++);
+			g_hash_table_insert(irc->sent_messages, label, NULL);
+			temp = g_strdup_printf("@label=%s %s", label, start_buf);
+			g_free(start_buf);
+			start_buf = temp;
+		}
+
+		irc_send(irc, start_buf);
+		g_free(start_buf);
+
+		cur = salvaged;
+		while (*cur) {
+			end = strchr(cur, '\n');
+			if (!end)
+				end = cur + strlen(cur);
+
+			const char *chunk_cur = cur;
+			while (chunk_cur < end) {
+				const char *chunk_end = chunk_cur + (end - chunk_cur);
+				gboolean concat = FALSE;
+				if (chunk_end - chunk_cur > max_privmsg_arg_len) {
+					g_utf8_validate(chunk_cur, max_privmsg_arg_len, &chunk_end);
+					concat = TRUE;
+				}
+				msg = g_strndup(chunk_cur, chunk_end - chunk_cur);
+
+				if (concat) {
+					buf = g_strdup_printf("@batch=%s;draft/multiline-concat %s %s :%s\r\n",
+										   batch_id, purple_strequal(cmd, "notice") ? "NOTICE" : "PRIVMSG", args[0], msg);
+				} else {
+					buf = g_strdup_printf("@batch=%s %s %s :%s\r\n",
+										   batch_id, purple_strequal(cmd, "notice") ? "NOTICE" : "PRIVMSG", args[0], msg);
+				}
+
+				irc_send(irc, buf);
+				g_free(buf);
+				g_free(msg);
+
+				chunk_cur = chunk_end;
+			}
+
+			cur = end;
+			if (*cur == '\n')
+				cur++;
+		}
+
+		batch_ref = g_strdup_printf("-%s", batch_id);
+		char *end_buf = irc_format(irc, "vv", "BATCH", batch_ref);
+		g_free(batch_ref);
+		irc_send(irc, end_buf);
+		g_free(end_buf);
+
+		g_free(batch_id);
+		g_free(salvaged);
+		return 0;
+	}
+
 	cur = salvaged;
 	end = salvaged;
 	while (*end && *cur) {

@@ -440,6 +440,20 @@ irc_chat_info_defaults(PurpleConnection *gc, const char *chat_name)
 }
 
 static void
+irc_batch_free(struct irc_batch *batch)
+{
+	if (!batch)
+		return;
+	g_free(batch->ref);
+	g_free(batch->type);
+	g_free(batch->target);
+	g_free(batch->from);
+	if (batch->content)
+		g_string_free(batch->content, TRUE);
+	g_free(batch);
+}
+
+static void
 irc_login(PurpleAccount *account)
 {
 	PurpleConnection *gc;
@@ -476,6 +490,7 @@ irc_login(PurpleAccount *account)
 	irc_msg_table_build(irc);
 	irc->sent_messages = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, NULL);
 	irc->last_msg_times = g_hash_table_new_full((GHashFunc) irc_nick_hash, (GEqualFunc) irc_nick_equal, g_free, g_free);
+	irc->active_batches = g_hash_table_new_full(g_str_hash, g_str_equal, g_free, (GDestroyNotify) irc_batch_free);
 
 	purple_connection_update_progress(gc, _("Connecting"), 1, 2);
 
@@ -682,6 +697,8 @@ irc_close(PurpleConnection *gc)
 	g_hash_table_destroy(irc->sent_messages);
 	if (irc->last_msg_times)
 		g_hash_table_destroy(irc->last_msg_times);
+	if (irc->active_batches)
+		g_hash_table_destroy(irc->active_batches);
 	if (irc->motd)
 		g_string_free(irc->motd, TRUE);
 	g_free(irc->server);

@@ -96,6 +96,16 @@ enum { IRC_USEROPT_SERVER,
 enum irc_state { IRC_STATE_NEW,
 				 IRC_STATE_ESTABLISHED };
 
+struct irc_batch {
+	char *ref;
+	char *type;
+	char *target;
+	char *from;
+	GString *content;
+	gboolean last_concat;
+	gboolean notice;
+};
+
 struct irc_conn {
 	PurpleAccount *account;
 	GHashTable *msgs;
@@ -157,6 +167,10 @@ struct irc_conn {
 	gboolean cap_batch;
 	gboolean cap_chathistory;
 	guint chathistory_limit;
+	gboolean cap_multiline;
+	guint multiline_max_bytes;
+	guint multiline_max_lines;
+	GHashTable *active_batches;
 	gboolean whox_supported;
 	gboolean monitor_supported;
 	gboolean cap_extended_monitor;
