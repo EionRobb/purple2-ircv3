@@ -1740,6 +1740,10 @@ irc_msg_handle_privmsg(struct irc_conn *irc, const char *name, const char *from,
 	const char *target = !purple_utf8_strcasecmp(to, purple_connection_get_display_name(gc)) ? nick : to;
 	irc_set_last_msg_time(irc, target, iso_buf);
 
+	if (strchr(rawmsg, '\007') != NULL) {
+		purple_prpl_got_attention(gc, nick, 0);
+	}
+
 	if (!purple_utf8_strcasecmp(to, purple_connection_get_display_name(gc))) {
 		serv_got_im(gc, nick, msg, 0, now);
 	} else if (!self_sent) {

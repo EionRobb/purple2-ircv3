@@ -360,6 +360,32 @@ irc_list_emblem(PurpleBuddy *buddy)
 	return NULL;
 }
 
+GList *
+irc_get_attention_types(PurpleAccount *account)
+{
+	PurpleAttentionType *attn;
+	GList *types = NULL;
+
+	attn = purple_attention_type_new("Nudge", _("Nudge"),
+		_("%s has nudged you!"), _("Nudging %s..."));
+	types = g_list_append(types, attn);
+
+	return types;
+}
+
+gboolean
+irc_send_attention(PurpleConnection *gc, const char *username, guint type)
+{
+	struct irc_conn *irc = gc->proto_data;
+	const char *args[2];
+
+	args[0] = username;
+	args[1] = "\007";
+
+	irc_cmd_privmsg(irc, "msg", NULL, args);
+	return TRUE;
+}
+
 static GList *
 irc_status_types(PurpleAccount *account)
 {
@@ -1463,6 +1489,8 @@ _init_plugin(PurplePlugin *plugin)
 	prpl_info->set_chat_topic = irc_chat_set_topic;
 	prpl_info->roomlist_get_list = irc_roomlist_get_list;
 	prpl_info->roomlist_cancel = irc_roomlist_cancel;
+	prpl_info->get_attention_types = irc_get_attention_types;
+	prpl_info->send_attention = irc_send_attention;
 	prpl_info->send_file = irc_dccsend_send_file;
 	prpl_info->new_xfer = irc_dccsend_new_xfer;
 	prpl_info->send_raw = irc_send_raw;

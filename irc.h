@@ -433,6 +433,11 @@ irc_msg_monfull(struct irc_conn *irc, const char *name, const char *from, char *
 void
 irc_send_monitor_add_all(struct irc_conn *irc);
 
+GList *
+irc_get_attention_types(PurpleAccount *account);
+gboolean
+irc_send_attention(PurpleConnection *gc, const char *username, guint type);
+
 unsigned int
 irc_send_typing(PurpleConnection *gc, const char *name, PurpleTypingState state);
 unsigned int
