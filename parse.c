@@ -34,23 +34,33 @@ irc_recv_convert(struct irc_conn *irc, const char *string);
 static void
 irc_parse_error_cb(struct irc_conn *irc, char *input);
 
-static char *irc_mirc_colors[16] = {
-	"white",
-	"black",
-	"blue",
-	"dark green",
-	"red",
-	"brown",
-	"purple",
-	"orange",
-	"yellow",
-	"green",
-	"teal",
-	"cyan",
-	"light blue",
-	"pink",
-	"grey",
-	"light grey"
+static const char *irc_mirc_colors[16] = {
+	"#FFFFFF", /* 0: white */
+	"#000000", /* 1: black */
+	"#070292", /* 2: blue / dark blue */
+	"#007700", /* 3: green / dark green */
+	"#FF2F00", /* 4: red */
+	"#803046", /* 5: brown / maroon */
+	"#7A3180", /* 6: purple */
+	"#FF9057", /* 7: orange */
+	"#FFFF00", /* 8: yellow */
+	"#78FF00", /* 9: lime / light green */
+	"#178A6E", /* 10: teal */
+	"#3CE9FF", /* 11: cyan / light cyan */
+	"#2320E2", /* 12: light blue */
+	"#E659EE", /* 13: pink */
+	"#777777", /* 14: grey */
+	"#BBBBBB"  /* 15: light grey */
+};
+
+static const char *irc_mirc_ext_colors[83] = {
+	"#470000", "#472100", "#474700", "#324700", "#004700", "#00472c", "#004747", "#002747", "#000047", "#2e0047", "#470047", "#47002a",
+	"#740000", "#743a00", "#747400", "#517400", "#007400", "#007449", "#007474", "#004074", "#000074", "#4b0074", "#740074", "#740045",
+	"#b50000", "#b56300", "#b5b500", "#7db500", "#00b500", "#00b571", "#00b5b5", "#0063b5", "#0000b5", "#7500b5", "#b500b5", "#b5006b",
+	"#ff0000", "#ff8c00", "#ffff00", "#b2ff00", "#00ff00", "#00ffa0", "#00ffff", "#008cff", "#0000ff", "#a500ff", "#ff00ff", "#ff0098",
+	"#ff5959", "#ffb459", "#ffff71", "#cfff60", "#6fff6f", "#65ffc9", "#6dffff", "#59b4ff", "#5959ff", "#c459ff", "#ff66ff", "#ff59bc",
+	"#ff9c9c", "#ffd39c", "#ffff9c", "#e2ff9c", "#9cff9c", "#9cffdb", "#9cffff", "#9cd3ff", "#9c9cff", "#dc9cff", "#ff9cff", "#ff94d3",
+	"#000000", "#131313", "#282828", "#363636", "#4d4d4d", "#656565", "#818181", "#9f9f9f", "#bcbcbc", "#e2e2e2", "#ffffff"
 };
 
 extern PurplePlugin *_irc_plugin;
@@ -419,7 +429,8 @@ irc_mirc2html(const char *string)
 	const char *cur, *end;
 	char fg[3] = "\0\0", bg[3] = "\0\0";
 	int fgnum, bgnum;
-	int font = 0, bold = 0, underline = 0, italic = 0;
+	int font = 0, bold = 0, underline = 0, italic = 0, strike = 0, monospace = 0;
+	gchar *cur_fg = NULL, *cur_bg = NULL;
 	GString *decoded;
 
 	if (string == NULL)
@@ -429,13 +440,13 @@ irc_mirc2html(const char *string)
 
 	cur = string;
 	do {
-		end = strpbrk(cur, "\002\003\007\017\026\037");
+		end = strpbrk(cur, "\002\003\004\007\017\021\026\035\036\037");
 
 		decoded = g_string_append_len(decoded, cur, (end ? (gssize) (end - cur) : (gssize) strlen(cur)));
 		cur = end ? end : cur + strlen(cur);
 
 		switch (*cur) {
-		case '\002':
+		case '\002': /* Bold */
 			cur++;
 			if (!bold) {
 				decoded = g_string_append(decoded, "<B>");
@@ -445,7 +456,7 @@ irc_mirc2html(const char *string)
 				bold = FALSE;
 			}
 			break;
-		case '\003':
+		case '\003': /* mIRC Color (fg,bg) */
 			cur++;
 			fg[0] = fg[1] = bg[0] = bg[1] = '\0';
 			if (isdigit(*cur))
@@ -463,22 +474,99 @@ irc_mirc2html(const char *string)
 				decoded = g_string_append(decoded, "</FONT>");
 				font = FALSE;
 			}
+			g_free(cur_fg); cur_fg = NULL;
+			g_free(cur_bg); cur_bg = NULL;
 
 			if (fg[0]) {
 				fgnum = atoi(fg);
-				if (fgnum < 0 || fgnum > 15)
-					continue;
-				font = TRUE;
-				g_string_append_printf(decoded, "<FONT COLOR=\"%s\"", irc_mirc_colors[fgnum]);
+				if (fgnum >= 0 && fgnum < 16) {
+					cur_fg = g_strdup(irc_mirc_colors[fgnum]);
+				} else if (fgnum >= 16 && fgnum <= 98) {
+					cur_fg = g_strdup(irc_mirc_ext_colors[fgnum - 16]);
+				} else if (fgnum == 99) {
+					cur_fg = NULL;
+				}
 				if (bg[0]) {
 					bgnum = atoi(bg);
-					if (bgnum >= 0 && bgnum < 16)
-						g_string_append_printf(decoded, " BACK=\"%s\"", irc_mirc_colors[bgnum]);
+					if (bgnum >= 0 && bgnum < 16) {
+						cur_bg = g_strdup(irc_mirc_colors[bgnum]);
+					} else if (bgnum >= 16 && bgnum <= 98) {
+						cur_bg = g_strdup(irc_mirc_ext_colors[bgnum - 16]);
+					} else if (bgnum == 99) {
+						cur_bg = NULL;
+					}
+				}
+				if (cur_fg || cur_bg) {
+					font = TRUE;
+					g_string_append_printf(decoded, "<FONT COLOR=\"%s\"", cur_fg ? cur_fg : "#000000");
+					if (cur_bg) {
+						g_string_append_printf(decoded, " BACK=\"%s\"", cur_bg);
+					}
+					decoded = g_string_append_c(decoded, '>');
+				}
+			}
+			break;
+		case '\004': /* Hex Color (\x04RRGGBB or \x04RRGGBB,RRGGBB) */
+			cur++;
+			if (font) {
+				decoded = g_string_append(decoded, "</FONT>");
+				font = FALSE;
+			}
+			g_free(cur_fg); cur_fg = NULL;
+			g_free(cur_bg); cur_bg = NULL;
+
+			if (g_ascii_isxdigit(cur[0]) && g_ascii_isxdigit(cur[1]) &&
+				g_ascii_isxdigit(cur[2]) && g_ascii_isxdigit(cur[3]) &&
+				g_ascii_isxdigit(cur[4]) && g_ascii_isxdigit(cur[5])) {
+				cur_fg = g_strdup_printf("#%.6s", cur);
+				cur += 6;
+				if (*cur == ',' &&
+					g_ascii_isxdigit(cur[1]) && g_ascii_isxdigit(cur[2]) &&
+					g_ascii_isxdigit(cur[3]) && g_ascii_isxdigit(cur[4]) &&
+					g_ascii_isxdigit(cur[5]) && g_ascii_isxdigit(cur[6])) {
+					cur++;
+					cur_bg = g_strdup_printf("#%.6s", cur);
+					cur += 6;
+				}
+				font = TRUE;
+				g_string_append_printf(decoded, "<FONT COLOR=\"%s\"", cur_fg);
+				if (cur_bg) {
+					g_string_append_printf(decoded, " BACK=\"%s\"", cur_bg);
 				}
 				decoded = g_string_append_c(decoded, '>');
 			}
 			break;
-		case '\011':
+		case '\021': /* Monospace */
+			cur++;
+			if (!monospace) {
+				decoded = g_string_append(decoded, "<FONT FACE=\"monospace\">");
+				monospace = TRUE;
+			} else {
+				decoded = g_string_append(decoded, "</FONT>");
+				monospace = FALSE;
+			}
+			break;
+		case '\026': /* Reverse Video (swap fg & bg) */
+			cur++;
+			if (font) {
+				decoded = g_string_append(decoded, "</FONT>");
+				font = FALSE;
+			}
+			{
+				char *tmp_color = cur_fg;
+				cur_fg = cur_bg;
+				cur_bg = tmp_color;
+			}
+			if (cur_fg || cur_bg) {
+				font = TRUE;
+				g_string_append_printf(decoded, "<FONT COLOR=\"%s\"", cur_fg ? cur_fg : "#000000");
+				if (cur_bg) {
+					g_string_append_printf(decoded, " BACK=\"%s\"", cur_bg);
+				}
+				decoded = g_string_append_c(decoded, '>');
+			}
+			break;
+		case '\035': /* Italic */
 			cur++;
 			if (!italic) {
 				decoded = g_string_append(decoded, "<I>");
@@ -488,7 +576,17 @@ irc_mirc2html(const char *string)
 				italic = FALSE;
 			}
 			break;
-		case '\037':
+		case '\036': /* Strikethrough */
+			cur++;
+			if (!strike) {
+				decoded = g_string_append(decoded, "<S>");
+				strike = TRUE;
+			} else {
+				decoded = g_string_append(decoded, "</S>");
+				strike = FALSE;
+			}
+			break;
+		case '\037': /* Underline */
 			cur++;
 			if (!underline) {
 				decoded = g_string_append(decoded, "<U>");
@@ -498,11 +596,10 @@ irc_mirc2html(const char *string)
 				underline = FALSE;
 			}
 			break;
-		case '\007':
-		case '\026':
+		case '\007': /* BEL */
 			cur++;
 			break;
-		case '\017':
+		case '\017': /* Reset */
 			cur++;
 			/* fallthrough */
 		case '\000':
@@ -512,14 +609,23 @@ irc_mirc2html(const char *string)
 				decoded = g_string_append(decoded, "</I>");
 			if (underline)
 				decoded = g_string_append(decoded, "</U>");
+			if (strike)
+				decoded = g_string_append(decoded, "</S>");
+			if (monospace)
+				decoded = g_string_append(decoded, "</FONT>");
 			if (font)
 				decoded = g_string_append(decoded, "</FONT>");
-			bold = italic = underline = font = FALSE;
+			bold = italic = underline = strike = monospace = font = FALSE;
+			g_free(cur_fg); cur_fg = NULL;
+			g_free(cur_bg); cur_bg = NULL;
 			break;
 		default:
 			purple_debug(PURPLE_DEBUG_ERROR, "irc", "Unexpected mIRC formatting character %d\n", *cur);
 		}
 	} while (*cur);
+
+	g_free(cur_fg);
+	g_free(cur_bg);
 
 	return g_string_free(decoded, FALSE);
 }
@@ -538,6 +644,15 @@ irc_mirc2txt(const char *string)
 	for (i = 0, j = 0; result[i]; i++) {
 		switch (result[i]) {
 		case '\002':
+		case '\011':
+		case '\017':
+		case '\021':
+		case '\026':
+		case '\035':
+		case '\036':
+		case '\037':
+		case '\007':
+			continue;
 		case '\003':
 			/* Foreground color */
 			if (isdigit(result[i + 1]))
@@ -552,13 +667,20 @@ irc_mirc2txt(const char *string)
 				if (isdigit(result[i + 1]))
 					i++;
 			}
-			/* Note that i still points to the last character
-			 * of the color selection string. */
 			continue;
-		case '\007':
-		case '\017':
-		case '\026':
-		case '\037':
+		case '\004':
+			/* Hex color (\x04RRGGBB or \x04RRGGBB,RRGGBB) */
+			if (g_ascii_isxdigit(result[i + 1]) && g_ascii_isxdigit(result[i + 2]) &&
+				g_ascii_isxdigit(result[i + 3]) && g_ascii_isxdigit(result[i + 4]) &&
+				g_ascii_isxdigit(result[i + 5]) && g_ascii_isxdigit(result[i + 6])) {
+				i += 6;
+				if (result[i + 1] == ',' &&
+					g_ascii_isxdigit(result[i + 2]) && g_ascii_isxdigit(result[i + 3]) &&
+					g_ascii_isxdigit(result[i + 4]) && g_ascii_isxdigit(result[i + 5]) &&
+					g_ascii_isxdigit(result[i + 6]) && g_ascii_isxdigit(result[i + 7])) {
+					i += 7;
+				}
+			}
 			continue;
 		default:
 			result[j++] = result[i];
