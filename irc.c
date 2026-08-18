@@ -488,7 +488,9 @@ irc_login(PurpleAccount *account)
 	const char *username = purple_account_get_username(account);
 
 	gc = purple_account_get_connection(account);
-	gc->flags |= PURPLE_CONNECTION_NO_NEWLINES;
+	gc->flags |= PURPLE_CONNECTION_NO_NEWLINES | PURPLE_CONNECTION_HTML 
+	             | PURPLE_CONNECTION_NO_FONTSIZE | PURPLE_CONNECTION_NO_URLDESC 
+	             | PURPLE_CONNECTION_NO_IMAGES;
 
 	if (strpbrk(username, " \t\v\r\n") != NULL) {
 		purple_connection_error_reason(gc,
@@ -759,16 +761,16 @@ static int
 irc_im_send(PurpleConnection *gc, const char *who, const char *what, PurpleMessageFlags flags)
 {
 	struct irc_conn *irc = gc->proto_data;
-	char *plain;
+	char *mirc;
 	const char *args[2];
 
 	args[0] = irc_nick_skip_mode(irc, who);
 
-	purple_markup_html_to_xhtml(what, NULL, &plain);
-	args[1] = plain;
+	mirc = irc_html2mirc(what);
+	args[1] = mirc;
 
 	irc_cmd_privmsg(irc, "msg", NULL, args);
-	g_free(plain);
+	g_free(mirc);
 	return 1;
 }
 
@@ -1075,7 +1077,7 @@ irc_chat_send(PurpleConnection *gc, int id, const char *what, PurpleMessageFlags
 	struct irc_conn *irc = gc->proto_data;
 	PurpleConversation *convo = purple_find_chat(gc, id);
 	const char *args[2];
-	char *tmp;
+	char *mirc;
 
 	if (!convo) {
 		purple_debug(PURPLE_DEBUG_ERROR, "irc", "chat send on nonexistent chat\n");
@@ -1086,14 +1088,14 @@ irc_chat_send(PurpleConnection *gc, int id, const char *what, PurpleMessageFlags
 		return irc_parse_cmd(irc, convo->name, what + 1);
 	}
 #endif
-	purple_markup_html_to_xhtml(what, NULL, &tmp);
+	mirc = irc_html2mirc(what);
 	args[0] = convo->name;
-	args[1] = tmp;
+	args[1] = mirc;
 
 	irc_cmd_privmsg(irc, "msg", NULL, args);
 
 	serv_got_chat_in(gc, id, purple_connection_get_display_name(gc), flags, what, time(NULL));
-	g_free(tmp);
+	g_free(mirc);
 	return 0;
 }
 

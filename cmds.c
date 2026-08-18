@@ -612,8 +612,11 @@ irc_cmd_query(struct irc_conn *irc, const char *cmd, const char *target, const c
 
 	if (args[1]) {
 		gc = purple_account_get_connection(irc->account);
-		irc_cmd_privmsg(irc, cmd, target, args);
+		char *mirc = irc_html2mirc(args[1]);
+		const char *newargs[2] = { args[0], mirc };
+		irc_cmd_privmsg(irc, cmd, target, newargs);
 		purple_conv_im_write(PURPLE_CONV_IM(convo), purple_connection_get_display_name(gc), args[1], PURPLE_MESSAGE_SEND, time(NULL));
+		g_free(mirc);
 	}
 
 	return 0;

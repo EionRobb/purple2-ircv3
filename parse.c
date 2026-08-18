@@ -690,6 +690,141 @@ irc_mirc2txt(const char *string)
 	return result;
 }
 
+char *
+irc_html2mirc(const char *html)
+{
+	if (!html || !*html)
+		return g_strdup("");
+
+	GString *out = g_string_sized_new(strlen(html));
+	const char *p = html;
+
+	while (*p) {
+		if (*p == '<') {
+			const char *tag_end = strchr(p, '>');
+			if (tag_end) {
+				gchar *tag = g_strndup(p + 1, tag_end - p - 1);
+				gchar *tag_lc = g_ascii_strdown(tag, -1);
+				g_free(tag);
+
+				gchar *t = g_strstrip(tag_lc);
+
+				if (g_str_has_prefix(t, "b") || g_str_has_prefix(t, "strong")) {
+					g_string_append_c(out, '\002');
+					g_free(tag_lc);
+					p = tag_end + 1;
+					continue;
+				} else if (g_str_has_prefix(t, "/b") || g_str_has_prefix(t, "/strong")) {
+					g_string_append_c(out, '\002');
+					g_free(tag_lc);
+					p = tag_end + 1;
+					continue;
+				} else if (g_str_has_prefix(t, "i") || g_str_has_prefix(t, "em")) {
+					g_string_append_c(out, '\035');
+					g_free(tag_lc);
+					p = tag_end + 1;
+					continue;
+				} else if (g_str_has_prefix(t, "/i") || g_str_has_prefix(t, "/em")) {
+					g_string_append_c(out, '\035');
+					g_free(tag_lc);
+					p = tag_end + 1;
+					continue;
+				} else if (g_str_has_prefix(t, "u") || g_str_has_prefix(t, "ins")) {
+					g_string_append_c(out, '\037');
+					g_free(tag_lc);
+					p = tag_end + 1;
+					continue;
+				} else if (g_str_has_prefix(t, "/u") || g_str_has_prefix(t, "/ins")) {
+					g_string_append_c(out, '\037');
+					g_free(tag_lc);
+					p = tag_end + 1;
+					continue;
+				} else if (g_str_has_prefix(t, "s") || g_str_has_prefix(t, "strike") || g_str_has_prefix(t, "del")) {
+					g_string_append_c(out, '\036');
+					g_free(tag_lc);
+					p = tag_end + 1;
+					continue;
+				} else if (g_str_has_prefix(t, "/s") || g_str_has_prefix(t, "/strike") || g_str_has_prefix(t, "/del")) {
+					g_string_append_c(out, '\036');
+					g_free(tag_lc);
+					p = tag_end + 1;
+					continue;
+				} else if (g_str_has_prefix(t, "tt") || g_str_has_prefix(t, "code")) {
+					g_string_append_c(out, '\021');
+					g_free(tag_lc);
+					p = tag_end + 1;
+					continue;
+				} else if (g_str_has_prefix(t, "/tt") || g_str_has_prefix(t, "/code")) {
+					g_string_append_c(out, '\021');
+					g_free(tag_lc);
+					p = tag_end + 1;
+					continue;
+				} else if (g_str_has_prefix(t, "font")) {
+					if (strstr(t, "face=\"monospace\"") || strstr(t, "face='monospace'") || strstr(t, "face=monospace")) {
+						g_string_append_c(out, '\021');
+					}
+					char *color = strstr(t, "color=");
+					char *back = strstr(t, "back=");
+					char fg_hex[7] = "";
+					char bg_hex[7] = "";
+
+					if (color) {
+						char *cval = color + 6;
+						if (*cval == '"' || *cval == '\'') cval++;
+						if (*cval == '#') cval++;
+						if (g_ascii_isxdigit(cval[0]) && g_ascii_isxdigit(cval[1]) && g_ascii_isxdigit(cval[2]) &&
+							g_ascii_isxdigit(cval[3]) && g_ascii_isxdigit(cval[4]) && g_ascii_isxdigit(cval[5])) {
+							g_strlcpy(fg_hex, cval, 7);
+						}
+					}
+					if (back) {
+						char *bval = back + 5;
+						if (*bval == '"' || *bval == '\'') bval++;
+						if (*bval == '#') bval++;
+						if (g_ascii_isxdigit(bval[0]) && g_ascii_isxdigit(bval[1]) && g_ascii_isxdigit(bval[2]) &&
+							g_ascii_isxdigit(bval[3]) && g_ascii_isxdigit(bval[4]) && g_ascii_isxdigit(bval[5])) {
+							g_strlcpy(bg_hex, bval, 7);
+						}
+					}
+					if (fg_hex[0]) {
+						if (bg_hex[0]) {
+							g_string_append_printf(out, "\004%s,%s", fg_hex, bg_hex);
+						} else {
+							g_string_append_printf(out, "\004%s", fg_hex);
+						}
+					}
+					g_free(tag_lc);
+					p = tag_end + 1;
+					continue;
+				} else if (g_str_has_prefix(t, "/font")) {
+					g_string_append_c(out, '\003');
+					g_free(tag_lc);
+					p = tag_end + 1;
+					continue;
+				} else if (g_str_has_prefix(t, "br")) {
+					g_string_append_c(out, '\n');
+					g_free(tag_lc);
+					p = tag_end + 1;
+					continue;
+				}
+
+				g_free(tag_lc);
+			}
+		}
+
+		g_string_append_c(out, *p++);
+	}
+
+	char *tmp = g_string_free(out, FALSE);
+	char *stripped = purple_markup_strip_html(tmp);
+	g_free(tmp);
+
+	char *clean = purple_unescape_html(stripped);
+	g_free(stripped);
+
+	return clean;
+}
+
 const char *
 irc_nick_skip_mode(struct irc_conn *irc, const char *nick)
 {

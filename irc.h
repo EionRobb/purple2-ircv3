@@ -221,6 +221,8 @@ char *
 irc_mirc2html(const char *string);
 char *
 irc_mirc2txt(const char *string);
+char *
+irc_html2mirc(const char *string);
 
 const char *
 irc_nick_skip_mode(struct irc_conn *irc, const char *string);
