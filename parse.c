@@ -993,8 +993,29 @@ irc_parse_msg(struct irc_conn *irc, char *input)
 		g_free(clean);
 	}
 
-	if (!strncmp(input, "PING ", 5)) {
-		msg = irc_format(irc, "vv", "PONG", input + 5);
+	g_free(irc->current_tags);
+	irc->current_tags = NULL;
+
+	if (input[0] == '@') {
+		cur = strchr(input, ' ');
+		if (cur == NULL) {
+			irc_parse_error_cb(irc, input);
+			return;
+		}
+
+		irc->current_tags = g_strndup(&input[1], cur - &input[1]);
+
+		/* Skip past the space to the actual message */
+		while (*cur == ' ')
+			cur++;
+		input = cur;
+	}
+
+	if (!strncmp(input, "PING ", 5) || !strncmp(input, "PING:", 5) || !strcmp(input, "PING")) {
+		const char *param = input + 4;
+		while (*param == ' ') param++;
+		if (*param == ':') param++;
+		msg = irc_format(irc, "v:", "PONG", param);
 		irc_send(irc, msg);
 		g_free(msg);
 		return;
@@ -1017,31 +1038,20 @@ irc_parse_msg(struct irc_conn *irc, char *input)
 #endif
 	}
 
-	g_free(irc->current_tags);
-	irc->current_tags = NULL;
-
-	if (input[0] == '@') {
+	if (input[0] != ':') {
+		from = g_strdup(irc->server ? irc->server : "");
+		cur = input;
+	} else {
 		cur = strchr(input, ' ');
 		if (cur == NULL) {
 			irc_parse_error_cb(irc, input);
 			return;
 		}
 
-		irc->current_tags = g_strndup(&input[1], cur - &input[1]);
-
-		/* Skip past the space to the actual message */
-		while (*cur == ' ')
-			cur++;
-		input = cur;
+		from = g_strndup(&input[1], cur - &input[1]);
+		cur++;
 	}
 
-	if (input[0] != ':' || (cur = strchr(input, ' ')) == NULL) {
-		irc_parse_error_cb(irc, input);
-		return;
-	}
-
-	from = g_strndup(&input[1], cur - &input[1]);
-	cur++;
 	end = strchr(cur, ' ');
 	if (!end)
 		end = cur + strlen(cur);
