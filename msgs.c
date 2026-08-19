@@ -1744,14 +1744,29 @@ irc_msg_handle_privmsg(struct irc_conn *irc, const char *name, const char *from,
 		purple_prpl_got_attention(gc, nick, 0);
 	}
 
-	if (!purple_utf8_strcasecmp(to, purple_connection_get_display_name(gc))) {
-		serv_got_im(gc, nick, msg, 0, now);
-	} else if (!self_sent) {
+	if (irc_ischannel(to)) {
 		convo = purple_find_conversation_with_account(PURPLE_CONV_TYPE_CHAT, irc_nick_skip_mode(irc, to), irc->account);
 		if (convo) {
-			serv_got_chat_in(gc, purple_conv_chat_get_id(PURPLE_CONV_CHAT(convo)), nick, 0, msg, now);
+			if (self_sent) {
+				purple_conversation_write(convo, nick, msg, PURPLE_MESSAGE_SEND, now);
+			} else {
+				serv_got_chat_in(gc, purple_conv_chat_get_id(PURPLE_CONV_CHAT(convo)), nick, notice ? PURPLE_MESSAGE_NOTIFY : 0, msg, now);
+			}
 		} else {
 			purple_debug_error("irc", "Got a %s on %s, which does not exist\n", notice ? "NOTICE" : "PRIVMSG", to);
+		}
+	} else {
+		if (!purple_utf8_strcasecmp(to, purple_connection_get_display_name(gc)) || g_strcmp0(to, "*") == 0) {
+			serv_got_im(gc, nick, msg, notice ? PURPLE_MESSAGE_NOTIFY : 0, now);
+		} else {
+			if (!self_sent) {
+				convo = purple_find_conversation_with_account(PURPLE_CONV_TYPE_IM, to, irc->account);
+				if (convo) {
+					purple_conversation_write(convo, nick, msg, PURPLE_MESSAGE_SEND, now);
+				} else {
+					serv_got_im(gc, to, msg, PURPLE_MESSAGE_SEND, now);
+				}
+			}
 		}
 	}
 	g_free(msg);
@@ -1943,6 +1958,10 @@ irc_auth_start_cyrus(struct irc_conn *irc)
 		}
 
 		sasl_setprop(irc->sasl_conn, SASL_AUTH_EXTERNAL, irc->account->username);
+		if (irc->gsc) {
+			sasl_ssf_t ssf = 256;
+			sasl_setprop(irc->sasl_conn, SASL_SSF, &ssf);
+		}
 		sasl_setprop(irc->sasl_conn, SASL_SEC_PROPS, &secprops);
 
 		ret = sasl_client_start(irc->sasl_conn, irc->sasl_mechs->str, NULL, NULL, NULL, &irc->current_mech);
@@ -2127,6 +2146,50 @@ irc_msg_authfail(struct irc_conn *irc, const char *name, const char *from, char 
 	}
 
 	irc_sasl_finish(irc);
+}
+
+void
+irc_msg_saslmechs(struct irc_conn *irc, const char *name, const char *from, char **args)
+{
+	if (!args || !args[1])
+		return;
+
+	purple_debug_info("irc", "Server advertised SASL mechanisms: %s\n", args[1]);
+
+	if (irc->sasl_mechs) {
+		gchar **server_mechs = g_strsplit(args[1], ",", -1);
+		GString *filtered = g_string_new("");
+		int i;
+
+		/* If we have a client certificate and server supports EXTERNAL, prioritize it */
+		if (irc->tls_cert_path && irc->gsc) {
+			for (i = 0; server_mechs[i] != NULL; i++) {
+				if (g_ascii_strcasecmp(server_mechs[i], "EXTERNAL") == 0) {
+					g_string_append(filtered, "EXTERNAL ");
+					break;
+				}
+			}
+		}
+
+		for (i = 0; server_mechs[i] != NULL; i++) {
+			if (g_ascii_strcasecmp(server_mechs[i], "EXTERNAL") == 0)
+				continue;
+			if (strstr(irc->sasl_mechs->str, server_mechs[i])) {
+				g_string_append_printf(filtered, "%s ", server_mechs[i]);
+			}
+		}
+
+		g_strfreev(server_mechs);
+
+		if (filtered->len > 0) {
+			g_string_truncate(filtered, filtered->len - 1);
+			g_string_free(irc->sasl_mechs, TRUE);
+			irc->sasl_mechs = filtered;
+			purple_debug_info("irc", "Filtered SASL mechanisms: %s\n", irc->sasl_mechs->str);
+		} else {
+			g_string_free(filtered, TRUE);
+		}
+	}
 }
 
 static void
@@ -2438,11 +2501,27 @@ irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **arg
 			}
 
 			irc->sasl_mechs = g_string_new(mech_list);
-			if ((pos = strstr(irc->sasl_mechs->str, "EXTERNAL"))) {
-				index = pos - irc->sasl_mechs->str;
-				g_string_erase(irc->sasl_mechs, index, strlen("EXTERNAL"));
-				if ((irc->sasl_mechs->str)[index] == ' ') {
-					g_string_erase(irc->sasl_mechs, index, 1);
+			if (irc->tls_cert_path && irc->gsc) {
+				/* Prepend EXTERNAL so Cyrus SASL tries client cert first */
+				if ((pos = strstr(irc->sasl_mechs->str, "EXTERNAL"))) {
+					index = pos - irc->sasl_mechs->str;
+					g_string_erase(irc->sasl_mechs, index, strlen("EXTERNAL"));
+					if (index < irc->sasl_mechs->len && (irc->sasl_mechs->str)[index] == ' ') {
+						g_string_erase(irc->sasl_mechs, index, 1);
+					}
+				}
+				if (irc->sasl_mechs->len > 0)
+					g_string_prepend(irc->sasl_mechs, "EXTERNAL ");
+				else
+					g_string_assign(irc->sasl_mechs, "EXTERNAL");
+			} else {
+				/* No client certificate configured, strip EXTERNAL */
+				if ((pos = strstr(irc->sasl_mechs->str, "EXTERNAL"))) {
+					index = pos - irc->sasl_mechs->str;
+					g_string_erase(irc->sasl_mechs, index, strlen("EXTERNAL"));
+					if (index < irc->sasl_mechs->len && (irc->sasl_mechs->str)[index] == ' ') {
+						g_string_erase(irc->sasl_mechs, index, 1);
+					}
 				}
 			}
 

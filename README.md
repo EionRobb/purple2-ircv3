@@ -40,7 +40,53 @@ sudo make install
 * **URI Handling**: Native `irc://` and `ircs://` protocol handler support for opening IRC links directly in Pidgin.
 * **Extended Text Formatting & Colors**: Bidirectional formatting support (aka MIRC colours) including bold, italics (`\x1D`), underline, strikethrough (`\x1E`), monospace (`\x11`), reverse video (`\x16`), 24-bit RGB hex colors (`\x04`), and extended 16-98 mIRC color palettes.
 * **Avatar & Buddy Icon Support**: Automatic fetching and rendering of user avatars and buddy icons via HTTP/HTTPS metadata.
+* **TLS Client Certificates & SASL EXTERNAL**: Supports client certificate authentication (CertFP) via a `.pem` file option (relative to the user's `.purple` folder or absolute path), with pre-connection format validation.
 * **Event Loop Integration**: Refactored timers and event handlers to run through libpurple's main event loop.
+
+## TLS Client Certificate (CertFP / SASL EXTERNAL) Setup
+
+To generate a self-signed TLS client certificate and private key in PEM format for SASL `EXTERNAL` authentication (CertFP):
+
+### 1. Generate the Certificate & Key
+```bash
+# Generate a combined certificate and key file (valid for 3 years)
+openssl req -x509 -new -newkey rsa:4096 -sha256 -days 1095 -nodes -out irc_cert.pem -keyout irc_cert.pem -subj "/CN=your_irc_nick"
+```
+
+### 2. Get the Certificate Fingerprint
+* **Libera.Chat / Atheme networks (SHA-512)**:
+  ```bash
+  openssl x509 -in irc_cert.pem -outform DER | openssl dgst -sha512 -r | cut -d' ' -f1
+  ```
+* **OFTC / Ergo / Anope networks (SHA-256)**:
+  ```bash
+  openssl x509 -in irc_cert.pem -outform DER | openssl dgst -sha256 -r | cut -d' ' -f1
+  ```
+
+### 3. Register the Fingerprint with NickServ
+* **Option A (Easiest)**: Connect to your IRC network with the certificate loaded in Pidgin, identify to your NickServ account, and simply send:
+  ```text
+  /msg NickServ CERT ADD
+  ```
+  *(NickServ on Libera.Chat automatically detects the certificate fingerprint from your active TLS connection!)*
+
+* **Option B**: Provide the fingerprint manually:
+  ```text
+  /msg NickServ CERT ADD <fingerprint>
+  ```
+
+### 4. Configure in Pidgin
+1. Copy `irc_cert.pem` to your `.purple` directory (e.g. `~/.purple/certs/irc_cert.pem` on Linux or `%APPDATA%\.purple\certs\irc_cert.pem` on Windows).
+2. In Pidgin, edit your IRC account:
+   * **Advanced Tab**:
+     * Check **Use SSL**
+     * Check **Authenticate with SASL**
+     * In **TLS Client Certificate (.pem)**, enter: `certs/irc_cert.pem` (or the absolute path)
+
+> [!TIP]
+> **Account Action Menu**: You can also right-click your IRC account in the Accounts window (or via **Accounts -> <Account> -> TLS Certificate Fingerprint**) to view your active certificate fingerprint and ready-to-run NickServ registration command, or automatically generate a new certificate if one does not exist.
+
+
 
 
 

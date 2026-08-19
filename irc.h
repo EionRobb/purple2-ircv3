@@ -179,6 +179,7 @@ struct irc_conn {
 	GHashTable *last_msg_times;
 	guint next_msg_id;
 	gboolean utf8only;
+	gchar *tls_cert_path;
 
 #ifdef HAVE_CYRUS_SASL
 	sasl_conn_t *sasl_conn;
@@ -223,6 +224,14 @@ char *
 irc_mirc2txt(const char *string);
 char *
 irc_html2mirc(const char *string);
+gboolean
+irc_ssl_apply_client_cert(PurpleSslConnection *gsc, const char *cert_path);
+char *
+irc_cert_get_fingerprint(const char *cert_path);
+gboolean
+irc_cert_get_fingerprints(const char *cert_path, char **sha256_out, char **sha512_out);
+gboolean
+irc_cert_generate(const char *out_path, const char *nick);
 
 const char *
 irc_nick_skip_mode(struct irc_conn *irc, const char *string);
@@ -350,10 +359,9 @@ void
 irc_msg_authenticate(struct irc_conn *irc, const char *name, const char *from, char **args);
 void
 irc_msg_authok(struct irc_conn *irc, const char *name, const char *from, char **args);
-void
-irc_msg_authtryagain(struct irc_conn *irc, const char *name, const char *from, char **args);
-void
-irc_msg_authfail(struct irc_conn *irc, const char *name, const char *from, char **args);
+void irc_msg_authtryagain(struct irc_conn *irc, const char *name, const char *from, char **args);
+void irc_msg_authfail(struct irc_conn *irc, const char *name, const char *from, char **args);
+void irc_msg_saslmechs(struct irc_conn *irc, const char *name, const char *from, char **args);
 #endif
 
 void

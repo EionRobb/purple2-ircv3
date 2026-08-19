@@ -141,6 +141,7 @@ static struct _irc_msg {
 	{ "905", "*", 0, irc_msg_authfail },			  /* SASL auth failed		*/
 	{ "906", "*", 0, irc_msg_authfail },			  /* SASL auth failed		*/
 	{ "907", "*", 0, irc_msg_authfail },			  /* SASL auth failed		*/
+	{ "908", "nv:", 2, irc_msg_saslmechs },		  /* RPL_SASLMECHS (available mechs) */
 	{ "authenticate", ":", 1, irc_msg_authenticate }, /* SASL authenticate		*/
 #endif
 	{ "account", ":", 1, irc_msg_account },		 /* Account notification (IRCv3)	*/

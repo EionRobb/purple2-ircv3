@@ -28,6 +28,8 @@
 
 #define PING_TIMEOUT 60
 
+
+
 static void
 irc_ison_buddy_init(char *name, struct irc_buddy *ib, GList **list);
 
@@ -93,6 +95,99 @@ irc_view_motd(PurplePluginAction *action)
 	purple_notify_formatted(gc, title, title, NULL, body, NULL, NULL);
 	g_free(title);
 	g_free(body);
+}
+
+static void
+irc_action_cert_fingerprint(PurplePluginAction *action)
+{
+	PurpleConnection *gc = (PurpleConnection *) action->context;
+	PurpleAccount *account;
+	struct irc_conn *irc;
+	const char *tls_cert;
+	gchar *cert_path = NULL;
+	gboolean generated = FALSE;
+
+	if (gc == NULL || gc->proto_data == NULL) {
+		purple_debug_error("irc", "got cert fingerprint request for NULL gc\n");
+		return;
+	}
+
+	irc = gc->proto_data;
+	account = purple_connection_get_account(gc);
+
+	if (irc->tls_cert_path && *irc->tls_cert_path) {
+		cert_path = g_strdup(irc->tls_cert_path);
+	} else {
+		tls_cert = purple_account_get_string(account, "tls_cert", NULL);
+		if (tls_cert && *tls_cert) {
+			if (!g_path_is_absolute(tls_cert))
+				cert_path = g_build_filename(purple_user_dir(), tls_cert, NULL);
+			else
+				cert_path = g_strdup(tls_cert);
+		}
+	}
+
+	if (!cert_path) {
+		cert_path = g_build_filename(purple_user_dir(), "certs", "irc_cert.pem", NULL);
+	}
+
+	gchar *sha256 = NULL;
+	gchar *sha512 = NULL;
+	irc_cert_get_fingerprints(cert_path, &sha256, &sha512);
+
+	if (!sha256) {
+		const char *nick = purple_connection_get_display_name(gc);
+		if (irc_cert_generate(cert_path, nick)) {
+			generated = TRUE;
+			irc_cert_get_fingerprints(cert_path, &sha256, &sha512);
+			purple_account_set_string(account, "tls_cert", "certs/irc_cert.pem");
+			if (!irc->tls_cert_path)
+				irc->tls_cert_path = g_strdup(cert_path);
+		}
+	}
+
+	if (sha256) {
+		char *title = g_strdup(_("TLS Certificate Fingerprint"));
+		char *primary = g_strdup_printf(_("Certificate Fingerprints for %s"), purple_account_get_username(account));
+		char *body = g_strdup_printf(
+			_("%s<b>Certificate File:</b><br><span style=\"font-family: monospace;\">%s</span><br><br>"
+			  "<b>Automatic NickServ Registration:</b><br>"
+			  "If currently connected via TLS with this certificate, simply send:<br>"
+			  "<span style=\"font-family: monospace; font-weight: bold;\">/msg NickServ CERT ADD</span><br><br>"
+			  "<b>SHA-512 Fingerprint (Libera.Chat / Atheme):</b><br><span style=\"font-family: monospace; font-weight: bold; word-break: break-all;\">%s</span><br>"
+			  "<code>/msg NickServ CERT ADD %s</code><br><br>"
+			  "<b>SHA-256 Fingerprint (OFTC / Ergo / Anope):</b><br><span style=\"font-family: monospace; font-weight: bold; word-break: break-all;\">%s</span><br>"
+			  "<code>/msg NickServ CERT ADD %s</code>"),
+			generated ? _("<i>A new client certificate was generated for this account.</i><br><br>") : "",
+			cert_path,
+			sha512 ? sha512 : "",
+			sha512 ? sha512 : "",
+			sha256, sha256);
+
+		purple_notify_formatted(gc, title, primary, NULL, body, NULL, NULL);
+
+		g_free(title);
+		g_free(primary);
+		g_free(body);
+		g_free(sha256);
+		g_free(sha512);
+	} else {
+		char *title = g_strdup(_("TLS Certificate Not Found"));
+		char *primary = g_strdup(_("No client certificate available"));
+		char *body = g_strdup_printf(
+			_("Could not find or automatically generate a certificate at:<br><span style=\"font-family: monospace;\">%s</span><br><br>"
+			  "You can generate one manually using OpenSSL:<br>"
+			  "<span style=\"font-family: monospace;\">openssl req -x509 -new -newkey rsa:4096 -sha256 -days 1095 -nodes -out irc_cert.pem -keyout irc_cert.pem</span>"),
+			cert_path);
+
+		purple_notify_error(gc, title, primary, body);
+
+		g_free(title);
+		g_free(primary);
+		g_free(body);
+	}
+
+	g_free(cert_path);
 }
 
 static int
@@ -428,6 +523,9 @@ irc_actions(PurplePlugin *plugin, gpointer context)
 	act = purple_plugin_action_new(_("View MOTD"), irc_view_motd);
 	list = g_list_append(list, act);
 
+	act = purple_plugin_action_new(_("TLS Certificate Fingerprint"), irc_action_cert_fingerprint);
+	list = g_list_append(list, act);
+
 	return list;
 }
 
@@ -499,9 +597,46 @@ irc_login(PurpleAccount *account)
 		return;
 	}
 
+#ifdef HAVE_CYRUS_SASL
+	const char *tls_cert = purple_account_get_string(account, "tls_cert", NULL);
+	gchar *resolved_cert_path = NULL;
+	if (tls_cert && *tls_cert) {
+		if (!g_path_is_absolute(tls_cert)) {
+			resolved_cert_path = g_build_filename(purple_user_dir(), tls_cert, NULL);
+		} else {
+			resolved_cert_path = g_strdup(tls_cert);
+		}
+
+		gchar *cert_contents = NULL;
+		gsize cert_len = 0;
+		if (!g_file_get_contents(resolved_cert_path, &cert_contents, &cert_len, NULL)) {
+			purple_connection_error_reason(gc,
+										   PURPLE_CONNECTION_ERROR_AUTHENTICATION_FAILED,
+										   _("TLS client certificate file could not be read."));
+			g_free(resolved_cert_path);
+			return;
+		}
+
+		if (!strstr(cert_contents, "-----BEGIN CERTIFICATE-----") ||
+			!strstr(cert_contents, "-----BEGIN")) {
+			purple_connection_error_reason(gc,
+										   PURPLE_CONNECTION_ERROR_AUTHENTICATION_FAILED,
+										   _("TLS client certificate file does not contain a valid PEM certificate."));
+			g_free(cert_contents);
+			g_free(resolved_cert_path);
+			return;
+		}
+
+		g_free(cert_contents);
+	}
+#endif
+
 	gc->proto_data = irc = g_new0(struct irc_conn, 1);
 	irc->fd = -1;
 	irc->account = account;
+#ifdef HAVE_CYRUS_SASL
+	irc->tls_cert_path = resolved_cert_path;
+#endif
 
 	irc->send_queue = g_queue_new();
 	irc->sent_partial = FALSE;
@@ -541,6 +676,9 @@ irc_login(PurpleAccount *account)
 	if (purple_account_get_bool(account, "ssl", FALSE)) {
 		if (purple_ssl_is_supported()) {
 			irc->gsc = purple_ssl_connect(account, irc->server, purple_account_get_int(account, "port", IRC_DEFAULT_SSL_PORT), irc_login_cb_ssl, irc_ssl_connect_failure, gc);
+			if (irc->gsc && irc->tls_cert_path) {
+				irc_ssl_apply_client_cert(irc->gsc, irc->tls_cert_path);
+			}
 		} else {
 			purple_connection_error_reason(gc,
 										   PURPLE_CONNECTION_ERROR_NO_SSL_SUPPORT,
@@ -743,6 +881,7 @@ irc_close(PurpleConnection *gc)
 
 	g_free(irc->mode_chars);
 	g_free(irc->reqnick);
+	g_free(irc->tls_cert_path);
 
 #ifdef HAVE_CYRUS_SASL
 	if (irc->sasl_conn) {
@@ -1529,6 +1668,9 @@ _init_plugin(PurplePlugin *plugin)
 	prpl_info->protocol_options = g_list_append(prpl_info->protocol_options, option);
 
 	option = purple_account_option_string_new(_("SASL login name"), "saslname", "");
+	prpl_info->protocol_options = g_list_append(prpl_info->protocol_options, option);
+
+	option = purple_account_option_string_new(_("TLS Client Certificate (.pem)"), "tls_cert", "");
 	prpl_info->protocol_options = g_list_append(prpl_info->protocol_options, option);
 
 	option = purple_account_option_bool_new(
