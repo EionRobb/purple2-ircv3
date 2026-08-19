@@ -2719,7 +2719,7 @@ irc_send_monitor_add_all(struct irc_conn *irc)
 	g_hash_table_foreach(irc->buddies, (GHFunc) irc_monitor_add_cb, str);
 
 	if (str->len > 0) {
-		buf = irc_format(irc, "v:", "MONITOR", "+", str->str);
+		buf = irc_format(irc, "vvv", "MONITOR", "+", str->str);
 		irc_send(irc, buf);
 		g_free(buf);
 	}

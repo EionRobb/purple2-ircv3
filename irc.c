@@ -877,7 +877,7 @@ irc_add_buddy(PurpleConnection *gc, PurpleBuddy *buddy, PurpleGroup *group)
 	if (irc->timer) {
 		irc_send_who(irc, bname);
 		if (irc->monitor_supported) {
-			char *buf = irc_format(irc, "v:", "MONITOR", "+", bname);
+			char *buf = irc_format(irc, "vvv", "MONITOR", "+", bname);
 			irc_send(irc, buf);
 			g_free(buf);
 		} else {
@@ -895,7 +895,7 @@ irc_remove_buddy(PurpleConnection *gc, PurpleBuddy *buddy, PurpleGroup *group)
 	ib = g_hash_table_lookup(irc->buddies, purple_buddy_get_name(buddy));
 	if (ib && --ib->ref == 0) {
 		if (irc->monitor_supported) {
-			char *buf = irc_format(irc, "v:", "MONITOR", "-", purple_buddy_get_name(buddy));
+			char *buf = irc_format(irc, "vvv", "MONITOR", "-", purple_buddy_get_name(buddy));
 			irc_send(irc, buf);
 			g_free(buf);
 		}
