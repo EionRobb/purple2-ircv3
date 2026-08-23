@@ -277,11 +277,19 @@ irc_msg_badmode(struct irc_conn *irc, const char *name, const char *from, char *
 void
 irc_msg_badnick(struct irc_conn *irc, const char *name, const char *from, char **args);
 void
+irc_msg_badkey(struct irc_conn *irc, const char *name, const char *from, char **args);
+void
+irc_msg_badchanmask(struct irc_conn *irc, const char *name, const char *from, char **args);
+void
 irc_msg_ban(struct irc_conn *irc, const char *name, const char *from, char **args);
 void
 irc_msg_banfull(struct irc_conn *irc, const char *name, const char *from, char **args);
 void
 irc_msg_banned(struct irc_conn *irc, const char *name, const char *from, char **args);
+void
+irc_msg_chanfull(struct irc_conn *irc, const char *name, const char *from, char **args);
+void
+irc_msg_toomanychan(struct irc_conn *irc, const char *name, const char *from, char **args);
 void
 irc_msg_chanmode(struct irc_conn *irc, const char *name, const char *from, char **args);
 void

@@ -461,6 +461,58 @@ irc_msg_banned(struct irc_conn *irc, const char *name, const char *from, char **
 }
 
 void
+irc_msg_badkey(struct irc_conn *irc, const char *name, const char *from, char **args)
+{
+	PurpleConnection *gc = purple_account_get_connection(irc->account);
+	char *buf;
+
+	g_return_if_fail(gc);
+
+	buf = g_strdup_printf(_("Cannot join %s: Incorrect or missing channel key."), args[1]);
+	purple_notify_error(gc, _("Requires password"), _("Cannot join channel"), buf);
+	g_free(buf);
+}
+
+void
+irc_msg_chanfull(struct irc_conn *irc, const char *name, const char *from, char **args)
+{
+	PurpleConnection *gc = purple_account_get_connection(irc->account);
+	char *buf;
+
+	g_return_if_fail(gc);
+
+	buf = g_strdup_printf(_("Cannot join %s: Channel user limit has been reached."), args[1]);
+	purple_notify_error(gc, _("Channel full"), _("Cannot join channel"), buf);
+	g_free(buf);
+}
+
+void
+irc_msg_toomanychan(struct irc_conn *irc, const char *name, const char *from, char **args)
+{
+	PurpleConnection *gc = purple_account_get_connection(irc->account);
+	char *buf;
+
+	g_return_if_fail(gc);
+
+	buf = g_strdup_printf(_("Cannot join %s: You have joined the maximum number of allowed channels."), args[1]);
+	purple_notify_error(gc, _("Too many channels"), _("Cannot join channel"), buf);
+	g_free(buf);
+}
+
+void
+irc_msg_badchanmask(struct irc_conn *irc, const char *name, const char *from, char **args)
+{
+	PurpleConnection *gc = purple_account_get_connection(irc->account);
+	char *buf;
+
+	g_return_if_fail(gc);
+
+	buf = g_strdup_printf(_("Cannot join %s: Invalid channel name."), args[1]);
+	purple_notify_error(gc, _("Bad channel name"), _("Cannot join channel"), buf);
+	g_free(buf);
+}
+
+void
 irc_msg_banfull(struct irc_conn *irc, const char *name, const char *from, char **args)
 {
 	PurpleConversation *convo;

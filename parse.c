@@ -120,6 +120,7 @@ static struct _irc_msg {
 	{ "406", "nt:", 2, irc_msg_nonick },	   /* No such nick for WHOWAS	*/
 	{ "403", "nc:", 2, irc_msg_nochan },	   /* No such channel		*/
 	{ "404", "nt:", 3, irc_msg_nosend },	   /* Cannot send to chan		*/
+	{ "405", "nc:", 2, irc_msg_toomanychan },  /* Joined too many channels	*/
 	{ "421", "nv:", 2, irc_msg_unknown },	   /* Unknown command		*/
 	{ "422", "n:", 1, irc_msg_motd },		   /* MOTD file missing		*/
 	{ "432", "vn:", 0, irc_msg_badnick },	   /* Erroneous nickname		*/
@@ -127,8 +128,11 @@ static struct _irc_msg {
 	{ "437", "nc:", 2, irc_msg_unavailable },  /* Nick/channel is unavailable	*/
 	{ "438", "nn:", 3, irc_msg_nochangenick }, /* Nick may not change		*/
 	{ "442", "nc:", 3, irc_msg_notinchan },	   /* Not in channel		*/
+	{ "471", "nc:", 2, irc_msg_chanfull },	   /* Channel is full (+l)		*/
 	{ "473", "nc:", 2, irc_msg_inviteonly },   /* Tried to join invite-only	*/
 	{ "474", "nc:", 2, irc_msg_banned },	   /* Banned from channel		*/
+	{ "475", "nc:", 2, irc_msg_badkey },	   /* Bad channel key (+k)		*/
+	{ "476", "nc:", 2, irc_msg_badchanmask },  /* Bad channel mask			*/
 	{ "477", "nc:", 3, irc_msg_regonly },	   /* Registration Required	*/
 	{ "478", "nct:", 3, irc_msg_banfull },	   /* Banlist is full		*/
 	{ "482", "nc:", 3, irc_msg_notop },		   /* Need to be op to do that	*/
