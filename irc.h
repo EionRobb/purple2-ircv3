@@ -140,9 +140,14 @@ struct irc_conn {
 		char *away;
 		char *server;
 		char *serverinfo;
+		char *connected_from;
+		char *secure;
+		char *certfp;
+		char *modes;
 		GString *channels;
 		int ircop;
 		int identified;
+		int bot;
 		int idle;
 		time_t signon;
 	} whois;

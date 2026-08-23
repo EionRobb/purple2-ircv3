@@ -511,6 +511,8 @@ irc_msg_whois(struct irc_conn *irc, const char *name, const char *from, char **a
 
 	if (purple_strequal(name, "301")) {
 		irc->whois.away = g_strdup(args[2]);
+	} else if (purple_strequal(name, "307")) {
+		irc->whois.identified = 1;
 	} else if (purple_strequal(name, "311") || purple_strequal(name, "314")) {
 		irc->whois.ident = g_strdup(args[2]);
 		irc->whois.host = g_strdup(args[3]);
@@ -533,9 +535,17 @@ irc_msg_whois(struct irc_conn *irc, const char *name, const char *from, char **a
 	} else if (purple_strequal(name, "320")) {
 		irc->whois.identified = 1;
 	} else if (purple_strequal(name, "330")) {
-		purple_debug(PURPLE_DEBUG_INFO, "irc", "330 %s: 1=[%s] 2=[%s] 3=[%s]", name, args[1], args[2], args[3]);
-		if (purple_strequal(args[3], "is logged in as"))
-			irc->whois.login = g_strdup(args[2]);
+		irc->whois.login = g_strdup(args[2]);
+	} else if (purple_strequal(name, "335")) {
+		irc->whois.bot = 1;
+	} else if (purple_strequal(name, "378")) {
+		irc->whois.connected_from = g_strdup(args[2]);
+	} else if (purple_strequal(name, "379")) {
+		irc->whois.modes = g_strdup(args[2]);
+	} else if (purple_strequal(name, "671") || purple_strequal(name, "275")) {
+		irc->whois.secure = g_strdup(args[2]);
+	} else if (purple_strequal(name, "276")) {
+		irc->whois.certfp = g_strdup(args[2]);
 	}
 }
 
@@ -558,7 +568,7 @@ irc_msg_endwhois(struct irc_conn *irc, const char *name, const char *from, char 
 	user_info = purple_notify_user_info_new();
 
 	tmp2 = g_markup_escape_text(args[1], -1);
-	tmp = g_strdup_printf("%s%s%s", tmp2, (irc->whois.ircop ? _(" <i>(ircop)</i>") : ""), (irc->whois.identified ? _(" <i>(identified)</i>") : ""));
+	tmp = g_strdup_printf("%s%s%s%s", tmp2, (irc->whois.ircop ? _(" <i>(ircop)</i>") : ""), (irc->whois.identified ? _(" <i>(identified)</i>") : ""), (irc->whois.bot ? _(" <i>(bot)</i>") : ""));
 	purple_notify_user_info_add_pair(user_info, _("Nick"), tmp);
 	g_free(tmp2);
 	g_free(tmp);
@@ -584,6 +594,22 @@ irc_msg_endwhois(struct irc_conn *irc, const char *name, const char *from, char 
 	if (irc->whois.host) {
 		purple_notify_user_info_add_pair_plaintext(user_info, _("Host name"), irc->whois.host);
 		g_free(irc->whois.host);
+	}
+	if (irc->whois.connected_from) {
+		purple_notify_user_info_add_pair_plaintext(user_info, _("Connected from"), irc->whois.connected_from);
+		g_free(irc->whois.connected_from);
+	}
+	if (irc->whois.secure) {
+		purple_notify_user_info_add_pair_plaintext(user_info, _("Secure connection"), irc->whois.secure);
+		g_free(irc->whois.secure);
+	}
+	if (irc->whois.certfp) {
+		purple_notify_user_info_add_pair_plaintext(user_info, _("Certificate fingerprint"), irc->whois.certfp);
+		g_free(irc->whois.certfp);
+	}
+	if (irc->whois.modes) {
+		purple_notify_user_info_add_pair_plaintext(user_info, _("User modes"), irc->whois.modes);
+		g_free(irc->whois.modes);
 	}
 	if (irc->whois.server) {
 		tmp = g_strdup_printf("%s (%s)", irc->whois.server, irc->whois.serverinfo);
@@ -2876,6 +2902,9 @@ irc_msg_whoisbot(struct irc_conn *irc, const char *name, const char *from, char 
 		return;
 
 	const char *target = args[1];
+	if (irc->whois.nick && !purple_utf8_strcasecmp(irc->whois.nick, target)) {
+		irc->whois.bot = 1;
+	}
 	PurpleBuddy *buddy = purple_find_buddy(irc->account, target);
 	if (buddy) {
 		purple_blist_node_set_bool(PURPLE_BLIST_NODE(buddy), "bot", TRUE);

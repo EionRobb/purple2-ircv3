@@ -79,8 +79,11 @@ static struct _irc_msg {
 	{ "005", "n*", 2, irc_msg_features },	   /* Feature list			*/
 	{ "251", "n:", 1, irc_msg_luser },		   /* Client & Server count	*/
 	{ "255", "n:", 1, irc_msg_luser },		   /* Client & Server count Mk. II	*/
+	{ "275", "nn:", 3, irc_msg_whois },		   /* RPL_WHOISSECURE (Unreal)	*/
+	{ "276", "nn:", 3, irc_msg_whois },		   /* RPL_WHOISCERTFP		*/
 	{ "301", "nn:", 3, irc_msg_away },		   /* User is away			*/
 	{ "303", "n:", 2, irc_msg_ison },		   /* ISON reply			*/
+	{ "307", "nn:", 2, irc_msg_whois },		   /* RPL_WHOISREGNICK		*/
 	{ "311", "nnvvv:", 6, irc_msg_whois },	   /* Whois user			*/
 	{ "312", "nnv:", 4, irc_msg_whois },	   /* Whois server			*/
 	{ "313", "nn:", 2, irc_msg_whois },		   /* Whois ircop			*/
@@ -109,7 +112,10 @@ static struct _irc_msg {
 	{ "372", "n:", 1, irc_msg_motd },		   /* MOTD				*/
 	{ "375", "n:", 1, irc_msg_motd },		   /* Start MOTD			*/
 	{ "376", "n:", 1, irc_msg_motd },		   /* End of MOTD			*/
+	{ "378", "nn:", 3, irc_msg_whois },		   /* RPL_WHOISHOST		*/
+	{ "379", "nn:", 3, irc_msg_whois },		   /* RPL_WHOISMODES		*/
 	{ "391", "nv:", 3, irc_msg_time },		   /* Time reply			*/
+	{ "671", "nn:", 3, irc_msg_whois },		   /* RPL_WHOISSECURE (Solanum)	*/
 	{ "401", "nt:", 2, irc_msg_nonick },	   /* No such nick/chan		*/
 	{ "406", "nt:", 2, irc_msg_nonick },	   /* No such nick for WHOWAS	*/
 	{ "403", "nc:", 2, irc_msg_nochan },	   /* No such channel		*/
