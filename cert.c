@@ -232,22 +232,8 @@ irc_cert_get_fingerprints(const char *cert_path, char **sha256_out, char **sha51
 	if (sha256_out)
 		*sha256_out = g_compute_checksum_for_data(G_CHECKSUM_SHA256, der, der_len);
 
-	if (sha512_out) {
-		PurpleCipherContext *context = purple_cipher_context_new_by_name("sha512", NULL);
-		if (context) {
-			purple_cipher_context_append(context, der, der_len);
-			guchar digest[64];
-			if (purple_cipher_context_digest(context, sizeof(digest), digest, NULL)) {
-				GString *s = g_string_sized_new(128);
-				gsize i;
-				for (i = 0; i < sizeof(digest); i++) {
-					g_string_append_printf(s, "%02x", digest[i]);
-				}
-				*sha512_out = g_string_free(s, FALSE);
-			}
-			purple_cipher_context_destroy(context);
-		}
-	}
+	if (sha512_out)
+		*sha512_out = g_compute_checksum_for_data(G_CHECKSUM_SHA512, der, der_len);
 
 	g_free(der);
 	return TRUE;

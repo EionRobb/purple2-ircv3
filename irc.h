@@ -67,6 +67,12 @@
 #define g_memdup2(mem, size) g_memdup((mem), (size))
 #endif
 
+#if !GLIB_CHECK_VERSION(2, 36, 0)
+#ifndef G_CHECKSUM_SHA512
+#define G_CHECKSUM_SHA512 ((GChecksumType) 3)
+#endif
+#endif
+
 #define IRC_DEFAULT_SERVER "irc.libera.chat"
 #define IRC_DEFAULT_PORT 6667
 #define IRC_DEFAULT_SSL_PORT 994
