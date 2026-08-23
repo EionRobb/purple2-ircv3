@@ -321,6 +321,48 @@ irc_msg_away_notify(struct irc_conn *irc, const char *name, const char *from, ch
 	g_free(nick);
 }
 
+static gboolean
+irc_is_batch_chathistory(struct irc_conn *irc)
+{
+	if (!irc->current_tags || !irc->active_batches)
+		return FALSE;
+
+	gchar **tags = g_strsplit(irc->current_tags, ";", -1);
+	gboolean is_ch = FALSE;
+	int i;
+	for (i = 0; tags[i] != NULL; i++) {
+		if (g_str_has_prefix(tags[i], "batch=")) {
+			const char *ref = tags[i] + 6;
+			struct irc_batch *batch = g_hash_table_lookup(irc->active_batches, ref);
+			if (batch && (g_strcmp0(batch->type, "chathistory") == 0 || g_strcmp0(batch->type, "draft/chathistory") == 0)) {
+				is_ch = TRUE;
+				break;
+			}
+		}
+	}
+	g_strfreev(tags);
+	return is_ch;
+}
+
+static time_t
+irc_parse_server_time(struct irc_conn *irc, time_t default_time)
+{
+	if (!irc->current_tags)
+		return default_time;
+
+	gchar **tags = g_strsplit(irc->current_tags, ";", -1);
+	time_t t = default_time;
+	int i;
+	for (i = 0; tags[i] != NULL; i++) {
+		if (g_str_has_prefix(tags[i], "time=")) {
+			t = purple_str_to_time(tags[i] + 5, TRUE, NULL, NULL, NULL);
+			break;
+		}
+	}
+	g_strfreev(tags);
+	return (t != 0) ? t : default_time;
+}
+
 void
 irc_msg_account(struct irc_conn *irc, const char *name, const char *from, char **args)
 {
@@ -897,6 +939,7 @@ irc_msg_topic(struct irc_conn *irc, const char *name, const char *from, char **a
 	tmp = g_markup_escape_text(topic, -1);
 	tmp2 = purple_markup_linkify(tmp);
 	g_free(tmp);
+	time_t msg_time = irc_parse_server_time(irc, time(NULL));
 	if (purple_strequal(name, "topic")) {
 		const char *current_topic = purple_conv_chat_get_topic(PURPLE_CONV_CHAT(convo));
 		if (!(current_topic != NULL && purple_strequal(tmp2, current_topic))) {
@@ -910,7 +953,7 @@ irc_msg_topic(struct irc_conn *irc, const char *name, const char *from, char **a
 				msg = g_strdup_printf(_("%s has cleared the topic."), nick_esc);
 			g_free(nick_esc);
 			g_free(nick);
-			purple_conv_chat_write(PURPLE_CONV_CHAT(convo), from, msg, PURPLE_MESSAGE_SYSTEM, time(NULL));
+			purple_conv_chat_write(PURPLE_CONV_CHAT(convo), from, msg, PURPLE_MESSAGE_SYSTEM, msg_time);
 			g_free(msg);
 		}
 	} else {
@@ -918,7 +961,7 @@ irc_msg_topic(struct irc_conn *irc, const char *name, const char *from, char **a
 		msg = g_strdup_printf(_("The topic for %s is: %s"), chan_esc, tmp2);
 		g_free(chan_esc);
 		purple_conv_chat_set_topic(PURPLE_CONV_CHAT(convo), NULL, topic);
-		purple_conv_chat_write(PURPLE_CONV_CHAT(convo), "", msg, PURPLE_MESSAGE_SYSTEM, time(NULL));
+		purple_conv_chat_write(PURPLE_CONV_CHAT(convo), "", msg, PURPLE_MESSAGE_SYSTEM, msg_time);
 		g_free(msg);
 	}
 	g_free(tmp2);
@@ -1400,6 +1443,26 @@ irc_msg_join(struct irc_conn *irc, const char *name, const char *from, char **ar
 
 	nick = irc_mask_nick(from);
 
+	if (irc_is_batch_chathistory(irc)) {
+		time_t msg_time = irc_parse_server_time(irc, time(NULL));
+		convo = purple_find_conversation_with_account(PURPLE_CONV_TYPE_CHAT, chan, irc->account);
+		if (convo) {
+			char *msg;
+			if (!purple_utf8_strcasecmp(nick, purple_connection_get_display_name(gc))) {
+				msg = g_strdup_printf(_("You joined %s"), chan);
+			} else {
+				msg = g_strdup_printf(_("%s joined %s"), nick, chan);
+			}
+			purple_conv_chat_write(PURPLE_CONV_CHAT(convo), "", msg, PURPLE_MESSAGE_SYSTEM | PURPLE_MESSAGE_NO_LOG, msg_time);
+			g_free(msg);
+		}
+		g_free(nick);
+		g_free(chan);
+		g_free(account);
+		g_free(realname);
+		return;
+	}
+
 	if (!purple_utf8_strcasecmp(nick, purple_connection_get_display_name(gc))) {
 		/* We are joining a channel for the first time */
 		serv_got_joined_chat(gc, id++, chan);
@@ -1517,6 +1580,19 @@ irc_msg_kick(struct irc_conn *irc, const char *name, const char *from, char **ar
 
 	nick = irc_mask_nick(from);
 
+	if (irc_is_batch_chathistory(irc)) {
+		time_t msg_time = irc_parse_server_time(irc, time(NULL));
+		if (!purple_utf8_strcasecmp(purple_connection_get_display_name(gc), args[1])) {
+			buf = g_strdup_printf(_("You were kicked by %s: (%s)"), nick, args[2]);
+		} else {
+			buf = g_strdup_printf(_("%s was kicked by %s (%s)"), args[1], nick, args[2]);
+		}
+		purple_conv_chat_write(PURPLE_CONV_CHAT(convo), args[0], buf, PURPLE_MESSAGE_SYSTEM | PURPLE_MESSAGE_NO_LOG, msg_time);
+		g_free(buf);
+		g_free(nick);
+		return;
+	}
+
 	if (!convo) {
 		purple_debug(PURPLE_DEBUG_ERROR, "irc", "Received a KICK for unknown channel %s\n", args[0]);
 		g_free(nick);
@@ -1552,9 +1628,10 @@ irc_msg_mode(struct irc_conn *irc, const char *name, const char *from, char **ar
 			g_free(nick);
 			return;
 		}
+		time_t msg_time = irc_parse_server_time(irc, time(NULL));
 		escaped = (args[2] != NULL) ? g_markup_escape_text(args[2], -1) : NULL;
 		buf = g_strdup_printf(_("mode (%s %s) by %s"), args[1], escaped ? escaped : "", nick);
-		purple_conv_chat_write(PURPLE_CONV_CHAT(convo), args[0], buf, PURPLE_MESSAGE_SYSTEM, time(NULL));
+		purple_conv_chat_write(PURPLE_CONV_CHAT(convo), args[0], buf, PURPLE_MESSAGE_SYSTEM, msg_time);
 		g_free(escaped);
 		g_free(buf);
 		if (args[2]) {
@@ -1617,6 +1694,21 @@ irc_msg_nick(struct irc_conn *irc, const char *name, const char *from, char **ar
 		g_free(nick);
 		return;
 	}
+
+	if (irc_is_batch_chathistory(irc)) {
+		time_t msg_time = irc_parse_server_time(irc, time(NULL));
+		char *msg = g_strdup_printf(_("%s is now known as %s"), nick, args[0]);
+		GSList *chats = gc->buddy_chats;
+		while (chats) {
+			PurpleConvChat *chat = PURPLE_CONV_CHAT(chats->data);
+			purple_conv_chat_write(chat, "", msg, PURPLE_MESSAGE_SYSTEM | PURPLE_MESSAGE_NO_LOG, msg_time);
+			chats = chats->next;
+		}
+		g_free(msg);
+		g_free(nick);
+		return;
+	}
+
 	chats = gc->buddy_chats;
 
 	if (!purple_utf8_strcasecmp(nick, purple_connection_get_display_name(gc))) {
@@ -1730,6 +1822,31 @@ irc_msg_part(struct irc_conn *irc, const char *name, const char *from, char **ar
 	}
 
 	nick = irc_mask_nick(from);
+
+	if (irc_is_batch_chathistory(irc)) {
+		time_t msg_time = irc_parse_server_time(irc, time(NULL));
+		if (!purple_utf8_strcasecmp(nick, purple_connection_get_display_name(gc))) {
+			char *escaped = args[1] ? g_markup_escape_text(args[1], -1) : NULL;
+			msg = g_strdup_printf(_("You parted the channel%s%s"),
+								  (args[1] && *args[1]) ? ": " : "",
+								  (escaped && *escaped) ? escaped : "");
+			g_free(escaped);
+			purple_conv_chat_write(PURPLE_CONV_CHAT(convo), channel, msg, PURPLE_MESSAGE_SYSTEM | PURPLE_MESSAGE_NO_LOG, msg_time);
+			g_free(msg);
+		} else {
+			char *escaped = args[1] ? g_markup_escape_text(args[1], -1) : NULL;
+			msg = g_strdup_printf(_("%s has parted %s%s%s"),
+								  nick, channel,
+								  (args[1] && *args[1]) ? ": " : "",
+								  (escaped && *escaped) ? escaped : "");
+			g_free(escaped);
+			purple_conv_chat_write(PURPLE_CONV_CHAT(convo), channel, msg, PURPLE_MESSAGE_SYSTEM | PURPLE_MESSAGE_NO_LOG, msg_time);
+			g_free(msg);
+		}
+		g_free(nick);
+		return;
+	}
+
 	if (!purple_utf8_strcasecmp(nick, purple_connection_get_display_name(gc))) {
 		char *escaped = args[1] ? g_markup_escape_text(args[1], -1) : NULL;
 		msg = g_strdup_printf(_("You have parted the channel%s%s"),
@@ -1998,6 +2115,26 @@ irc_msg_quit(struct irc_conn *irc, const char *name, const char *from, char **ar
 	char *data[2];
 
 	g_return_if_fail(gc);
+
+	if (irc_is_batch_chathistory(irc)) {
+		time_t msg_time = irc_parse_server_time(irc, time(NULL));
+		char *nick = irc_mask_nick(from);
+		char *escaped = args[0] ? g_markup_escape_text(args[0], -1) : NULL;
+		char *msg = g_strdup_printf(_("%s has quit%s%s"),
+									nick,
+									(args[0] && *args[0]) ? ": " : "",
+									(escaped && *escaped) ? escaped : "");
+		g_free(escaped);
+		GSList *chats = gc->buddy_chats;
+		while (chats) {
+			PurpleConvChat *chat = PURPLE_CONV_CHAT(chats->data);
+			purple_conv_chat_write(chat, "", msg, PURPLE_MESSAGE_SYSTEM | PURPLE_MESSAGE_NO_LOG, msg_time);
+			chats = chats->next;
+		}
+		g_free(msg);
+		g_free(nick);
+		return;
+	}
 
 	data[0] = irc_mask_nick(from);
 	data[1] = args[0];
@@ -2509,6 +2646,8 @@ irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **arg
 				g_string_append(req, "batch ");
 			} else if (strcmp(cap_array[i], "draft/chathistory") == 0 || strcmp(cap_array[i], "chathistory") == 0) {
 				g_string_append(req, "draft/chathistory ");
+			} else if (strcmp(cap_array[i], "draft/event-playback") == 0 || strcmp(cap_array[i], "event-playback") == 0) {
+				g_string_append(req, "draft/event-playback ");
 			} else if (strcmp(cap_array[i], "draft/metadata-2") == 0) {
 				g_string_append(req, "draft/metadata-2 ");
 			} else if (strcmp(cap_array[i], "sts") == 0 || strncmp(cap_array[i], "sts=", 4) == 0) {
@@ -2560,6 +2699,8 @@ irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **arg
 				irc->cap_batch = FALSE;
 			} else if (strcmp(cap_array[i], "draft/chathistory") == 0 || strcmp(cap_array[i], "chathistory") == 0) {
 				irc->cap_chathistory = FALSE;
+			} else if (strcmp(cap_array[i], "draft/event-playback") == 0 || strcmp(cap_array[i], "event-playback") == 0) {
+				irc->cap_event_playback = FALSE;
 			} else if (strcmp(cap_array[i], "draft/metadata-2") == 0) {
 				irc->cap_metadata_2 = FALSE;
 			}
@@ -2591,6 +2732,8 @@ irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **arg
 				irc->cap_batch = TRUE;
 			} else if (strcmp(cap_array[i], "draft/chathistory") == 0 || strcmp(cap_array[i], "chathistory") == 0) {
 				irc->cap_chathistory = TRUE;
+			} else if (strcmp(cap_array[i], "draft/event-playback") == 0 || strcmp(cap_array[i], "event-playback") == 0) {
+				irc->cap_event_playback = TRUE;
 			} else if (strcmp(cap_array[i], "draft/metadata-2") == 0) {
 				irc->cap_metadata_2 = TRUE;
 			} else if (strcmp(cap_array[i], "sts") == 0 || strncmp(cap_array[i], "sts=", 4) == 0) {
@@ -2627,6 +2770,8 @@ irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **arg
 				irc->cap_batch = TRUE;
 			} else if (strcmp(cap_array[i], "draft/chathistory") == 0 || strcmp(cap_array[i], "chathistory") == 0) {
 				irc->cap_chathistory = TRUE;
+			} else if (strcmp(cap_array[i], "draft/event-playback") == 0 || strcmp(cap_array[i], "event-playback") == 0) {
+				irc->cap_event_playback = TRUE;
 			} else if (strcmp(cap_array[i], "draft/metadata-2") == 0) {
 				irc->cap_metadata_2 = TRUE;
 			}

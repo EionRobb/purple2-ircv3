@@ -21,6 +21,7 @@ sudo make install
 * [`chathistory`](https://ircv3.net/specs/extensions/chathistory) - requests message history / backscroll from servers and bouncers
 * [`chghost`](https://ircv3.net/specs/extensions/chghost) - updates user hostnames and idents without synthetic reconnects
 * [`echo-message`](https://ircv3.net/specs/extensions/echo-message) - echoes back sent messages
+* [`event-playback`](https://ircv3.net/specs/extensions/event-playback) - historical playback of joins, parts, quits, kicks, modes, and topics in chathistory (draft)
 * [`extended-join`](https://ircv3.net/specs/extensions/extended-join) - includes account name and realname in JOIN notifications
 * [`extended-monitor`](https://ircv3.net/specs/extensions/extended-monitor) - extends MONITOR to push away, account, and host changes for monitored contacts
 * [`invite-notify`](https://ircv3.net/specs/extensions/invite-notify) - notifies when someone has been invited to a channel

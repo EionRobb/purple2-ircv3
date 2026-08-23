@@ -179,6 +179,7 @@ struct irc_conn {
 	gboolean cap_batch;
 	gboolean cap_chathistory;
 	guint chathistory_limit;
+	gboolean cap_event_playback;
 	gboolean cap_multiline;
 	guint multiline_max_bytes;
 	guint multiline_max_lines;
