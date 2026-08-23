@@ -103,6 +103,7 @@ static struct _irc_msg {
 	{ "332", "nc:", 3, irc_msg_topic },		   /* Channel topic		*/
 	{ "333", "ncvv", 4, irc_msg_topicinfo },   /* Topic setter stuff		*/
 	{ "335", "nn:", 2, irc_msg_whoisbot },	   /* RPL_WHOISBOT (bot-mode)	*/
+	{ "341", "nc:", 3, irc_msg_inviting },	   /* RPL_INVITING			*/
 	{ "352", "ncvvvnv:", 8, irc_msg_who },	   /* Channel WHO			*/
 	{ "354", "nvvvvvvv:", 9, irc_msg_whox },   /* Extended WHO (WHOX) reply	*/
 	{ "353", "nvc:", 4, irc_msg_names },	   /* Names list			*/

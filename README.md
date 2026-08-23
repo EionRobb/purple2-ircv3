@@ -36,6 +36,7 @@ sudo make install
 * [`whox`](https://ircv3.net/specs/extensions/whox) - extended WHO queries for efficient user status/account retrieval
 
 ## Additional Features
+* **Modern IRC Protocol & Error Handling**: Comprehensive channel join error reporting for password-protected channels (`475` `+k`), full channels (`471` `+l`), invite-only channels (`473`), bans (`474`), channel limits (`405`), and invalid masks (`476`), invitation confirmation (`341` `RPL_INVITING`), as well as expanded WHOIS metadata reporting (TLS connection ciphers, real connecting host/IP, cert fingerprints, user modes, and bot status).
 * **Attention / Nudges**: ASCII `\007` (BEL) integration with Pidgin's native Nudge/Attention API to shake/flash windows and play sound alerts on incoming nudges, as well as sending nudges via `/nudge` or the UI button.
 * **URI Handling**: Native `irc://` and `ircs://` protocol handler support for opening IRC links directly in Pidgin.
 * **Extended Text Formatting & Colors**: Bidirectional formatting support (aka MIRC colours) including bold, italics (`\x1D`), underline, strikethrough (`\x1E`), monospace (`\x11`), reverse video (`\x16`), 24-bit RGB hex colors (`\x04`), and extended 16-98 mIRC color palettes.

@@ -301,6 +301,8 @@ irc_msg_features(struct irc_conn *irc, const char *name, const char *from, char 
 void
 irc_msg_invite(struct irc_conn *irc, const char *name, const char *from, char **args);
 void
+irc_msg_inviting(struct irc_conn *irc, const char *name, const char *from, char **args);
+void
 irc_msg_inviteonly(struct irc_conn *irc, const char *name, const char *from, char **args);
 void
 irc_msg_ison(struct irc_conn *irc, const char *name, const char *from, char **args);

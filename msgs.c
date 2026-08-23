@@ -1187,7 +1187,7 @@ irc_msg_invite(struct irc_conn *irc, const char *name, const char *from, char **
 	nick = irc_mask_nick(from);
 
 	// If the invitee is not us, display it as an info message
-	if (purple_strequal(args[0], purple_connection_get_display_name(gc))) {
+	if (!purple_strequal(args[0], purple_connection_get_display_name(gc))) {
 		PurpleConversation *convo = purple_find_conversation_with_account(PURPLE_CONV_TYPE_CHAT, args[1], irc->account);
 		if (convo) {
 			gchar *msg = g_strdup_printf(_("%s has invited %s to the channel %s"), nick, args[0], args[1]);
@@ -1204,6 +1204,38 @@ irc_msg_invite(struct irc_conn *irc, const char *name, const char *from, char **
 
 	serv_got_chat_invite(gc, args[1], nick, NULL, components);
 	g_free(nick);
+}
+
+void
+irc_msg_inviting(struct irc_conn *irc, const char *name, const char *from, char **args)
+{
+	PurpleConversation *convo;
+	const char *nick, *channel;
+	char *chan_clean, *sp, *buf;
+
+	if (!args || !args[1] || !args[2])
+		return;
+
+	if (irc_ischannel(args[1])) {
+		channel = args[1];
+		nick = args[2];
+	} else {
+		nick = args[1];
+		channel = args[2];
+	}
+
+	chan_clean = g_strdup(channel);
+	sp = strchr(chan_clean, ' ');
+	if (sp)
+		*sp = '\0';
+
+	convo = purple_find_conversation_with_account(PURPLE_CONV_TYPE_CHAT, chan_clean, irc->account);
+	if (convo) {
+		buf = g_strdup_printf(_("Invited %s to %s"), nick, chan_clean);
+		purple_conv_chat_write(PURPLE_CONV_CHAT(convo), "", buf, PURPLE_MESSAGE_SYSTEM, time(NULL));
+		g_free(buf);
+	}
+	g_free(chan_clean);
 }
 
 void
