@@ -2275,23 +2275,29 @@ irc_auth_start_cyrus(struct irc_conn *irc)
 		gchar *tmp = NULL;
 		again = FALSE;
 
-		ret = sasl_client_new("irc", irc->server, NULL, NULL, irc->sasl_cb, 0, &irc->sasl_conn);
+		if (irc->sasl_conn == NULL) {
+			ret = sasl_client_new("irc", irc->server, NULL, NULL, irc->sasl_cb, 0, &irc->sasl_conn);
 
-		if (ret != SASL_OK) {
-			purple_debug_error("irc", "sasl_client_new failed: %d\n", ret);
-			tmp = g_strdup_printf(_("Failed to initialize SASL authentication: %s"),
-								  sasl_errdetail(irc->sasl_conn));
-			purple_connection_error_reason(gc,
-										   PURPLE_CONNECTION_ERROR_OTHER_ERROR,
-										   tmp);
-			g_free(tmp);
-			return;
+			if (ret != SASL_OK) {
+				purple_debug_error("irc", "sasl_client_new failed: %d\n", ret);
+				tmp = g_strdup_printf(_("Failed to initialize SASL authentication: %s"),
+									  sasl_errdetail(irc->sasl_conn));
+				purple_connection_error_reason(gc,
+											   PURPLE_CONNECTION_ERROR_OTHER_ERROR,
+											   tmp);
+				g_free(tmp);
+				return;
+			}
 		}
 
-		sasl_setprop(irc->sasl_conn, SASL_AUTH_EXTERNAL, irc->account->username);
+		const char *username = purple_account_get_string(irc->account, "username", NULL);
+		if (!username || !*username)
+			username = purple_account_get_username(irc->account);
+		if (username)
+			sasl_setprop(irc->sasl_conn, SASL_AUTH_EXTERNAL, username);
 		if (irc->gsc) {
 			sasl_ssf_t ssf = 256;
-			sasl_setprop(irc->sasl_conn, SASL_SSF, &ssf);
+			sasl_setprop(irc->sasl_conn, SASL_SSF_EXTERNAL, &ssf);
 		}
 		sasl_setprop(irc->sasl_conn, SASL_SEC_PROPS, &secprops);
 
@@ -2785,89 +2791,101 @@ irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **arg
 
 #ifdef HAVE_CYRUS_SASL
 		if (sasl_acked) {
-			int ret;
-			const char *mech_list = NULL;
-			char *pos;
-			size_t index;
-			int id = 0;
+			if (irc->sasl_conn == NULL) {
+				int ret;
+				const char *mech_list = NULL;
+				char *pos;
+				size_t index;
+				int id = 0;
 
-			if (sasl_client_init(NULL) != SASL_OK) {
-				const char *tmp =
-				  _("SASL authentication failed: Initializing SASL failed.");
-				purple_connection_error_reason(gc, PURPLE_CONNECTION_ERROR_OTHER_ERROR, tmp);
-				return;
-			}
+				if (sasl_client_init(NULL) != SASL_OK) {
+					const char *tmp =
+					  _("SASL authentication failed: Initializing SASL failed.");
+					purple_connection_error_reason(gc, PURPLE_CONNECTION_ERROR_OTHER_ERROR, tmp);
+					return;
+				}
 
-			irc->sasl_cb = g_new0(sasl_callback_t, 5);
+				irc->sasl_cb = g_new0(sasl_callback_t, 5);
 
-			irc->sasl_cb[id].id = SASL_CB_AUTHNAME;
-			irc->sasl_cb[id].proc = (void *) irc_sasl_cb_simple;
-			irc->sasl_cb[id].context = (void *) irc;
-			id++;
+				irc->sasl_cb[id].id = SASL_CB_AUTHNAME;
+				irc->sasl_cb[id].proc = (void *) irc_sasl_cb_simple;
+				irc->sasl_cb[id].context = (void *) irc;
+				id++;
 
-			irc->sasl_cb[id].id = SASL_CB_USER;
-			irc->sasl_cb[id].proc = (void *) irc_sasl_cb_simple;
-			irc->sasl_cb[id].context = (void *) irc;
-			id++;
+				irc->sasl_cb[id].id = SASL_CB_USER;
+				irc->sasl_cb[id].proc = (void *) irc_sasl_cb_simple;
+				irc->sasl_cb[id].context = (void *) irc;
+				id++;
 
-			irc->sasl_cb[id].id = SASL_CB_PASS;
-			irc->sasl_cb[id].proc = (void *) irc_sasl_cb_secret;
-			irc->sasl_cb[id].context = (void *) irc;
-			id++;
+				irc->sasl_cb[id].id = SASL_CB_PASS;
+				irc->sasl_cb[id].proc = (void *) irc_sasl_cb_secret;
+				irc->sasl_cb[id].context = (void *) irc;
+				id++;
 
-			irc->sasl_cb[id].id = SASL_CB_LOG;
-			irc->sasl_cb[id].proc = (void *) irc_sasl_cb_log;
-			irc->sasl_cb[id].context = (void *) irc;
-			id++;
+				irc->sasl_cb[id].id = SASL_CB_LOG;
+				irc->sasl_cb[id].proc = (void *) irc_sasl_cb_log;
+				irc->sasl_cb[id].context = (void *) irc;
+				id++;
 
-			irc->sasl_cb[id].id = SASL_CB_LIST_END;
+				irc->sasl_cb[id].id = SASL_CB_LIST_END;
 
-			ret = sasl_client_new("irc", irc->server, NULL, NULL, irc->sasl_cb, 0, &irc->sasl_conn);
+				ret = sasl_client_new("irc", irc->server, NULL, NULL, irc->sasl_cb, 0, &irc->sasl_conn);
 
-			sasl_listmech(irc->sasl_conn, NULL, "", " ", "", &mech_list, NULL, NULL);
-			purple_debug_info("irc", "SASL: we have available: %s\n", mech_list);
+				if (ret != SASL_OK) {
+					gchar *tmp;
 
-			if (ret != SASL_OK) {
-				gchar *tmp;
+					purple_debug_error("irc", "sasl_client_new failed: %d\n", ret);
+					tmp = g_strdup_printf(_("Failed to initialize SASL authentication: %s"),
+										  sasl_errdetail(irc->sasl_conn));
+					purple_connection_error_reason(gc, PURPLE_CONNECTION_ERROR_OTHER_ERROR, tmp);
+					g_free(tmp);
 
-				purple_debug_error("irc", "sasl_client_new failed: %d\n", ret);
-				tmp = g_strdup_printf(_("Failed to initialize SASL authentication: %s"),
-									  sasl_errdetail(irc->sasl_conn));
-				purple_connection_error_reason(gc, PURPLE_CONNECTION_ERROR_OTHER_ERROR, tmp);
-				g_free(tmp);
+					return;
+				}
 
-				return;
-			}
+				const char *username = purple_account_get_string(irc->account, "username", NULL);
+				if (!username || !*username)
+					username = purple_account_get_username(irc->account);
+				if (username)
+					sasl_setprop(irc->sasl_conn, SASL_AUTH_EXTERNAL, username);
+				if (irc->gsc) {
+					sasl_ssf_t ssf = 256;
+					sasl_setprop(irc->sasl_conn, SASL_SSF_EXTERNAL, &ssf);
+				}
 
-			irc->sasl_mechs = g_string_new(mech_list);
-			if (irc->tls_cert_path && irc->gsc) {
-				/* Prepend EXTERNAL so Cyrus SASL tries client cert first */
-				if ((pos = strstr(irc->sasl_mechs->str, "EXTERNAL"))) {
-					index = pos - irc->sasl_mechs->str;
-					g_string_erase(irc->sasl_mechs, index, strlen("EXTERNAL"));
-					if (index < irc->sasl_mechs->len && (irc->sasl_mechs->str)[index] == ' ') {
-						g_string_erase(irc->sasl_mechs, index, 1);
+				sasl_listmech(irc->sasl_conn, NULL, "", " ", "", &mech_list, NULL, NULL);
+				purple_debug_info("irc", "SASL: we have available: %s\n", mech_list);
+
+				irc->sasl_mechs = g_string_new(mech_list);
+				if (irc->tls_cert_path && irc->gsc) {
+					/* Prepend EXTERNAL so Cyrus SASL tries client cert first */
+					if ((pos = strstr(irc->sasl_mechs->str, "EXTERNAL"))) {
+						index = pos - irc->sasl_mechs->str;
+						g_string_erase(irc->sasl_mechs, index, strlen("EXTERNAL"));
+						if (index < irc->sasl_mechs->len && (irc->sasl_mechs->str)[index] == ' ') {
+							g_string_erase(irc->sasl_mechs, index, 1);
+						}
+					}
+					if (irc->sasl_mechs->len > 0)
+						g_string_prepend(irc->sasl_mechs, "EXTERNAL ");
+					else
+						g_string_assign(irc->sasl_mechs, "EXTERNAL");
+				} else {
+					/* No client certificate configured, strip EXTERNAL */
+					if ((pos = strstr(irc->sasl_mechs->str, "EXTERNAL"))) {
+						index = pos - irc->sasl_mechs->str;
+						g_string_erase(irc->sasl_mechs, index, strlen("EXTERNAL"));
+						if (index < irc->sasl_mechs->len && (irc->sasl_mechs->str)[index] == ' ') {
+							g_string_erase(irc->sasl_mechs, index, 1);
+						}
 					}
 				}
-				if (irc->sasl_mechs->len > 0)
-					g_string_prepend(irc->sasl_mechs, "EXTERNAL ");
-				else
-					g_string_assign(irc->sasl_mechs, "EXTERNAL");
-			} else {
-				/* No client certificate configured, strip EXTERNAL */
-				if ((pos = strstr(irc->sasl_mechs->str, "EXTERNAL"))) {
-					index = pos - irc->sasl_mechs->str;
-					g_string_erase(irc->sasl_mechs, index, strlen("EXTERNAL"));
-					if (index < irc->sasl_mechs->len && (irc->sasl_mechs->str)[index] == ' ') {
-						g_string_erase(irc->sasl_mechs, index, 1);
-					}
-				}
-			}
 
-			irc_auth_start_cyrus(irc);
-		} else {
+				irc_auth_start_cyrus(irc);
+			}
+		} else if (irc->sasl_conn == NULL) {
 #endif
-			/* If SASL wasn't requested/acked, just end CAP */
+			/* If SASL wasn't requested/acked and not already authenticating, end CAP */
 			char *buf = irc_format(irc, "vv", "CAP", "END");
 			irc_priority_send(irc, buf);
 			g_free(buf);

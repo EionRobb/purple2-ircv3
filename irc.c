@@ -45,6 +45,8 @@ irc_actions(PurplePlugin *plugin, gpointer context);
 static void
 irc_login(PurpleAccount *account);
 static void
+irc_ssl_proxy_connect_cb(gpointer data, gint source, const gchar *error_message);
+static void
 irc_login_cb_ssl(gpointer data, PurpleSslConnection *gsc, PurpleInputCondition cond);
 static void
 irc_login_cb(gpointer data, gint source, const gchar *error_message);
@@ -675,9 +677,19 @@ irc_login(PurpleAccount *account)
 
 	if (purple_account_get_bool(account, "ssl", FALSE)) {
 		if (purple_ssl_is_supported()) {
-			irc->gsc = purple_ssl_connect(account, irc->server, purple_account_get_int(account, "port", IRC_DEFAULT_SSL_PORT), irc_login_cb_ssl, irc_ssl_connect_failure, gc);
-			if (irc->gsc && irc->tls_cert_path) {
-				irc_ssl_apply_client_cert(irc->gsc, irc->tls_cert_path);
+			int ssl_port = purple_account_get_int(account, "port", IRC_DEFAULT_SSL_PORT);
+			if (irc->tls_cert_path && *irc->tls_cert_path) {
+				purple_debug_info("irc", "Connecting to %s:%d with client cert %s (proxy connect before SSL)\n",
+								  irc->server, ssl_port, irc->tls_cert_path);
+				if (purple_proxy_connect(gc, account, irc->server, ssl_port, irc_ssl_proxy_connect_cb, gc) == NULL) {
+					purple_connection_error_reason(gc,
+												   PURPLE_CONNECTION_ERROR_NETWORK_ERROR,
+												   _("Unable to connect"));
+					return;
+				}
+				return;
+			} else {
+				irc->gsc = purple_ssl_connect(account, irc->server, ssl_port, irc_login_cb_ssl, irc_ssl_connect_failure, gc);
 			}
 		} else {
 			purple_connection_error_reason(gc,
@@ -785,6 +797,39 @@ do_login(PurpleConnection *gc)
 	irc->send_handler = purple_timeout_add_seconds(1, irc_send_handler_cb, irc);
 
 	return TRUE;
+}
+
+static void
+irc_ssl_proxy_connect_cb(gpointer data, gint source, const gchar *error_message)
+{
+	PurpleConnection *gc = data;
+	struct irc_conn *irc = gc->proto_data;
+
+	if (source < 0) {
+		gchar *tmp = g_strdup_printf(_("Unable to connect: %s"),
+									 error_message ? error_message : "");
+		purple_connection_error_reason(gc,
+									   PURPLE_CONNECTION_ERROR_NETWORK_ERROR,
+									   tmp);
+		g_free(tmp);
+		return;
+	}
+
+	irc->gsc = purple_ssl_connect_with_host_fd(irc->account, source,
+											   irc_login_cb_ssl,
+											   irc_ssl_connect_failure,
+											   irc->server, gc);
+	if (!irc->gsc) {
+		purple_connection_error_reason(gc,
+									   PURPLE_CONNECTION_ERROR_NETWORK_ERROR,
+									   _("SSL connect failed"));
+		return;
+	}
+
+	if (irc->tls_cert_path) {
+		purple_debug_info("irc", "Applying TLS client certificate to SSL connection: %s\n", irc->tls_cert_path);
+		irc_ssl_apply_client_cert(irc->gsc, irc->tls_cert_path);
+	}
 }
 
 static void
