@@ -1663,7 +1663,9 @@ irc_msg_handle_privmsg(struct irc_conn *irc, const char *name, const char *from,
 		for (i = 0; tags[i] != NULL; i++) {
 			if (g_str_has_prefix(tags[i], "label=")) {
 				if (g_hash_table_remove(irc->sent_messages, tags[i] + 6)) { // Skip "label="
-					self_sent = TRUE;
+					if (!purple_utf8_strcasecmp(nick, purple_connection_get_display_name(gc))) {
+						self_sent = TRUE;
+					}
 				}
 			} else if (g_str_has_prefix(tags[i], "time=")) {
 				time_tag = tags[i] + 5; // Skip "time="
@@ -1700,30 +1702,35 @@ irc_msg_handle_privmsg(struct irc_conn *irc, const char *name, const char *from,
 			} else if (g_str_has_prefix(tags[i], "batch=")) {
 				const char *batch_ref = tags[i] + 6;
 				struct irc_batch *batch = g_hash_table_lookup(irc->active_batches, batch_ref);
-				if (batch && (g_strcmp0(batch->type, "draft/multiline") == 0 || g_strcmp0(batch->type, "multiline") == 0)) {
-					gboolean has_concat = FALSE;
-					int j;
-					for (j = 0; tags[j] != NULL; j++) {
-						if (g_strcmp0(tags[j], "draft/multiline-concat") == 0 || g_strcmp0(tags[j], "multiline-concat") == 0) {
-							has_concat = TRUE;
-							break;
+				if (batch) {
+					if (batch->self_sent && !purple_utf8_strcasecmp(nick, purple_connection_get_display_name(gc))) {
+						self_sent = TRUE;
+					}
+					if (g_strcmp0(batch->type, "draft/multiline") == 0 || g_strcmp0(batch->type, "multiline") == 0) {
+						gboolean has_concat = FALSE;
+						int j;
+						for (j = 0; tags[j] != NULL; j++) {
+							if (g_strcmp0(tags[j], "draft/multiline-concat") == 0 || g_strcmp0(tags[j], "multiline-concat") == 0) {
+								has_concat = TRUE;
+								break;
+							}
 						}
-					}
-					if (!batch->from)
-						batch->from = g_strdup(nick);
+						if (!batch->from)
+							batch->from = g_strdup(nick);
 
-					if (batch->last_concat) {
-						g_string_append(batch->content, rawmsg);
-					} else {
-						if (batch->content->len > 0)
-							g_string_append_c(batch->content, '\n');
-						g_string_append(batch->content, rawmsg);
-					}
-					batch->last_concat = has_concat;
+						if (batch->last_concat) {
+							g_string_append(batch->content, rawmsg);
+						} else {
+							if (batch->content->len > 0)
+								g_string_append_c(batch->content, '\n');
+							g_string_append(batch->content, rawmsg);
+						}
+						batch->last_concat = has_concat;
 
-					g_strfreev(tags);
-					g_free(nick);
-					return;
+						g_strfreev(tags);
+						g_free(nick);
+						return;
+					}
 				}
 			}
 		}
@@ -1749,6 +1756,8 @@ irc_msg_handle_privmsg(struct irc_conn *irc, const char *name, const char *from,
 		convo = purple_find_conversation_with_account(PURPLE_CONV_TYPE_CHAT, irc_nick_skip_mode(irc, to), irc->account);
 		if (convo) {
 			if (self_sent) {
+				/* Message was sent locally by this client and already displayed in irc_chat_send */
+			} else if (!purple_utf8_strcasecmp(nick, purple_connection_get_display_name(gc))) {
 				purple_conversation_write(convo, nick, msg, PURPLE_MESSAGE_SEND, now);
 			} else {
 				serv_got_chat_in(gc, purple_conv_chat_get_id(PURPLE_CONV_CHAT(convo)), nick, notice ? PURPLE_MESSAGE_NOTIFY : 0, msg, now);
@@ -1758,7 +1767,11 @@ irc_msg_handle_privmsg(struct irc_conn *irc, const char *name, const char *from,
 		}
 	} else {
 		if (!purple_utf8_strcasecmp(to, purple_connection_get_display_name(gc)) || g_strcmp0(to, "*") == 0) {
-			serv_got_im(gc, nick, msg, notice ? PURPLE_MESSAGE_NOTIFY : 0, now);
+			if (self_sent && !purple_utf8_strcasecmp(nick, purple_connection_get_display_name(gc))) {
+				/* Self-sent message echoed back to us; already displayed on send */
+			} else {
+				serv_got_im(gc, nick, msg, notice ? PURPLE_MESSAGE_NOTIFY : 0, now);
+			}
 		} else {
 			if (!self_sent) {
 				convo = purple_find_conversation_with_account(PURPLE_CONV_TYPE_IM, to, irc->account);
@@ -2550,6 +2563,12 @@ irc_msg_tagmsg(struct irc_conn *irc, const char *name, const char *from, char **
 	if (!irc->current_tags)
 		return;
 
+	nick = irc_mask_nick(from);
+	if (nick && !purple_utf8_strcasecmp(nick, purple_connection_get_display_name(gc))) {
+		g_free(nick);
+		return;
+	}
+
 	tags_arr = g_strsplit(irc->current_tags, ";", -1);
 	for (i = 0; tags_arr[i] != NULL; i++) {
 		kv = g_strsplit(tags_arr[i], "=", 2);
@@ -2667,24 +2686,37 @@ irc_msg_batch(struct irc_conn *irc, const char *name, const char *from, char **a
 			const char *ref = tokens[0] + 1;
 			const char *type = tokens[1];
 			const char *target = tokens[2];
+			gboolean is_self_sent = FALSE;
 
-			if (g_strcmp0(type, "draft/multiline") == 0 || g_strcmp0(type, "multiline") == 0) {
-				struct irc_batch *batch = g_new0(struct irc_batch, 1);
-				batch->ref = g_strdup(ref);
-				batch->type = g_strdup(type);
-				batch->target = g_strdup(target);
-				if (from)
-					batch->from = irc_mask_nick(from);
-				batch->content = g_string_new("");
-				g_hash_table_replace(irc->active_batches, g_strdup(ref), batch);
+			if (irc->current_tags) {
+				gchar **tags = g_strsplit(irc->current_tags, ";", -1);
+				int i;
+				for (i = 0; tags[i] != NULL; i++) {
+					if (g_str_has_prefix(tags[i], "label=")) {
+						if (g_hash_table_remove(irc->sent_messages, tags[i] + 6)) {
+							is_self_sent = TRUE;
+						}
+					}
+				}
+				g_strfreev(tags);
 			}
+
+			struct irc_batch *batch = g_new0(struct irc_batch, 1);
+			batch->ref = g_strdup(ref);
+			batch->type = g_strdup(type);
+			batch->target = g_strdup(target);
+			if (from)
+				batch->from = irc_mask_nick(from);
+			batch->content = g_string_new("");
+			batch->self_sent = is_self_sent;
+			g_hash_table_replace(irc->active_batches, g_strdup(ref), batch);
 		}
 		g_strfreev(tokens);
 	} else if (args[0][0] == '-') {
 		const char *ref = args[0] + 1;
 		struct irc_batch *batch = g_hash_table_lookup(irc->active_batches, ref);
 		if (batch) {
-			if (g_strcmp0(batch->type, "draft/multiline") == 0 || g_strcmp0(batch->type, "multiline") == 0) {
+			if (!batch->self_sent && (g_strcmp0(batch->type, "draft/multiline") == 0 || g_strcmp0(batch->type, "multiline") == 0)) {
 				PurpleConnection *gc = purple_account_get_connection(irc->account);
 				if (gc && batch->content && batch->target) {
 					char *nick = batch->from ? batch->from : g_strdup("");
@@ -2693,10 +2725,23 @@ irc_msg_batch(struct irc_conn *irc, const char *name, const char *from, char **a
 					if (irc_ischannel(batch->target)) {
 						PurpleConversation *convo = purple_find_conversation_with_account(PURPLE_CONV_TYPE_CHAT, batch->target, irc->account);
 						if (convo) {
-							serv_got_chat_in(gc, purple_conv_chat_get_id(PURPLE_CONV_CHAT(convo)), nick, PURPLE_MESSAGE_RECV, msg, now);
+							if (!purple_utf8_strcasecmp(nick, purple_connection_get_display_name(gc))) {
+								purple_conversation_write(convo, nick, msg, PURPLE_MESSAGE_SEND, now);
+							} else {
+								serv_got_chat_in(gc, purple_conv_chat_get_id(PURPLE_CONV_CHAT(convo)), nick, PURPLE_MESSAGE_RECV, msg, now);
+							}
 						}
 					} else {
-						serv_got_im(gc, nick, msg, PURPLE_MESSAGE_RECV, now);
+						if (!purple_utf8_strcasecmp(batch->target, purple_connection_get_display_name(gc))) {
+							serv_got_im(gc, nick, msg, PURPLE_MESSAGE_RECV, now);
+						} else {
+							PurpleConversation *convo = purple_find_conversation_with_account(PURPLE_CONV_TYPE_IM, batch->target, irc->account);
+							if (convo) {
+								purple_conversation_write(convo, nick, msg, PURPLE_MESSAGE_SEND, now);
+							} else {
+								serv_got_im(gc, batch->target, msg, PURPLE_MESSAGE_SEND, now);
+							}
+						}
 					}
 					g_free(msg);
 					if (batch->from) g_free(nick);

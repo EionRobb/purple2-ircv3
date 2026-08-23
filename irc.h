@@ -110,6 +110,7 @@ struct irc_batch {
 	GString *content;
 	gboolean last_concat;
 	gboolean notice;
+	gboolean self_sent;
 };
 
 struct irc_conn {
