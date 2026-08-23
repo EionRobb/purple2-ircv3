@@ -311,6 +311,12 @@ irc_msg_join(struct irc_conn *irc, const char *name, const char *from, char **ar
 void
 irc_msg_kick(struct irc_conn *irc, const char *name, const char *from, char **args);
 void
+irc_msg_knock(struct irc_conn *irc, const char *name, const char *from, char **args);
+void
+irc_msg_knockdlvr(struct irc_conn *irc, const char *name, const char *from, char **args);
+void
+irc_msg_knockerr(struct irc_conn *irc, const char *name, const char *from, char **args);
+void
 irc_msg_list(struct irc_conn *irc, const char *name, const char *from, char **args);
 void
 irc_msg_luser(struct irc_conn *irc, const char *name, const char *from, char **args);
@@ -410,6 +416,8 @@ int
 irc_cmd_join(struct irc_conn *irc, const char *cmd, const char *target, const char **args);
 int
 irc_cmd_kick(struct irc_conn *irc, const char *cmd, const char *target, const char **args);
+int
+irc_cmd_knock(struct irc_conn *irc, const char *cmd, const char *target, const char **args);
 int
 irc_cmd_list(struct irc_conn *irc, const char *cmd, const char *target, const char **args);
 int

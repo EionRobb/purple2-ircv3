@@ -140,6 +140,12 @@ static struct _irc_msg {
 	{ "501", "n:", 2, irc_msg_badmode },	   /* Unknown mode flag		*/
 	{ "506", "nc:", 3, irc_msg_nosend },	   /* Must identify to send	*/
 	{ "515", "nc:", 3, irc_msg_regonly },	   /* Registration required	*/
+	{ "710", "ncv:", 4, irc_msg_knock },	   /* RPL_KNOCK				*/
+	{ "711", "nc:", 3, irc_msg_knockdlvr },	   /* RPL_KNOCKDLVR			*/
+	{ "712", "nc:", 3, irc_msg_knockerr },	   /* ERR_TOOMANYKNOCK		*/
+	{ "713", "nc:", 3, irc_msg_knockerr },	   /* ERR_CHANOPEN			*/
+	{ "714", "nc:", 3, irc_msg_knockerr },	   /* ERR_KNOCKONCHAN		*/
+	{ "715", "n:", 2, irc_msg_knockerr },	   /* ERR_KNOCKDISABLED		*/
 	{ "730", "n:", 2, irc_msg_mononline },	   /* RPL_MONONLINE (IRCv3)	*/
 	{ "731", "n:", 2, irc_msg_monoffline },	   /* RPL_MONOFFLINE (IRCv3)	*/
 	{ "732", "n:", 2, irc_msg_monlist },	   /* RPL_MONLIST (IRCv3)	*/
@@ -196,6 +202,7 @@ static struct _irc_user_cmd {
 	{ "j", "cv", irc_cmd_join, N_("j &lt;room1&gt;[,room2][,...] [key1[,key2][,...]]:  Enter one or more channels, optionally providing a channel key for each if needed.") },
 	{ "join", "cv", irc_cmd_join, N_("join &lt;room1&gt;[,room2][,...] [key1[,key2][,...]]:  Enter one or more channels, optionally providing a channel key for each if needed.") },
 	{ "kick", "n:", irc_cmd_kick, N_("kick &lt;nick&gt; [message]:  Remove someone from a channel. You must be a channel operator to do this.") },
+	{ "knock", "c:", irc_cmd_knock, N_("knock &lt;channel&gt; [message]:  Request an invite to an invite-only channel.") },
 	{ "list", ":", irc_cmd_list, N_("list:  Display a list of chat rooms on the network. <i>Warning, some servers may disconnect you upon doing this.</i>") },
 	{ "me", ":", irc_cmd_ctcp_action, N_("me &lt;action to perform&gt;:  Perform an action.") },
 	{ "memoserv", ":", irc_cmd_service, N_("memoserv: Send a command to memoserv") },

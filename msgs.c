@@ -1252,6 +1252,76 @@ irc_msg_inviteonly(struct irc_conn *irc, const char *name, const char *from, cha
 }
 
 void
+irc_msg_knock(struct irc_conn *irc, const char *name, const char *from, char **args)
+{
+	PurpleConversation *convo;
+	char *nick, *buf;
+
+	if (!args || !args[1] || !args[2])
+		return;
+
+	nick = irc_mask_nick(args[2]);
+	convo = purple_find_conversation_with_account(PURPLE_CONV_TYPE_CHAT, args[1], irc->account);
+	if (convo) {
+		if (args[3] && *args[3]) {
+			buf = g_strdup_printf(_("%s has knocked on %s (%s)"), nick, args[1], args[3]);
+		} else {
+			buf = g_strdup_printf(_("%s has knocked on %s"), nick, args[1]);
+		}
+		purple_conv_chat_write(PURPLE_CONV_CHAT(convo), "", buf, PURPLE_MESSAGE_SYSTEM, time(NULL));
+		g_free(buf);
+	}
+	g_free(nick);
+}
+
+void
+irc_msg_knockdlvr(struct irc_conn *irc, const char *name, const char *from, char **args)
+{
+	PurpleConversation *convo;
+	char *buf;
+
+	if (!args || !args[1])
+		return;
+
+	convo = purple_find_conversation_with_account(PURPLE_CONV_TYPE_CHAT, args[1], irc->account);
+	if (convo) {
+		buf = g_strdup_printf(_("Your knock to %s has been delivered."), args[1]);
+		purple_conv_chat_write(PURPLE_CONV_CHAT(convo), "", buf, PURPLE_MESSAGE_SYSTEM, time(NULL));
+		g_free(buf);
+	} else {
+		PurpleConnection *gc = purple_account_get_connection(irc->account);
+		if (gc) {
+			buf = g_strdup_printf(_("Your knock to %s has been delivered."), args[1]);
+			purple_notify_info(gc, _("Knock Delivered"), _("Knock Delivered"), buf);
+			g_free(buf);
+		}
+	}
+}
+
+void
+irc_msg_knockerr(struct irc_conn *irc, const char *name, const char *from, char **args)
+{
+	PurpleConnection *gc = purple_account_get_connection(irc->account);
+	char *buf;
+	const char *detail = (args[1] && args[2]) ? args[2] : (args[1] ? args[1] : "");
+
+	g_return_if_fail(gc);
+
+	if (purple_strequal(name, "712")) {
+		buf = g_strdup_printf(_("Cannot knock on %s: Too many knocks (%s)."), args[1], detail);
+	} else if (purple_strequal(name, "713")) {
+		buf = g_strdup_printf(_("Cannot knock on %s: Channel is open (%s)."), args[1], detail);
+	} else if (purple_strequal(name, "714")) {
+		buf = g_strdup_printf(_("Cannot knock on %s: You are already on that channel (%s)."), args[1], detail);
+	} else {
+		buf = g_strdup_printf(_("Cannot knock: %s"), detail);
+	}
+
+	purple_notify_error(gc, _("Cannot Knock"), _("Cannot Knock"), buf);
+	g_free(buf);
+}
+
+void
 irc_msg_ison(struct irc_conn *irc, const char *name, const char *from, char **args)
 {
 	char **nicks;

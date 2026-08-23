@@ -249,6 +249,42 @@ irc_cmd_join(struct irc_conn *irc, const char *cmd, const char *target, const ch
 }
 
 int
+irc_cmd_knock(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
+{
+	char *buf;
+	const char *channel = NULL;
+	const char *message = NULL;
+
+	if (!args || !args[0]) {
+		if (target && irc_ischannel(target))
+			channel = target;
+		else
+			return 0;
+	} else {
+		if (irc_ischannel(args[0])) {
+			channel = args[0];
+			message = args[1];
+		} else if (target && irc_ischannel(target)) {
+			channel = target;
+			message = args[0];
+		} else {
+			channel = args[0];
+			message = args[1];
+		}
+	}
+
+	if (message && *message)
+		buf = irc_format(irc, "vc:", "KNOCK", channel, message);
+	else
+		buf = irc_format(irc, "vc", "KNOCK", channel);
+
+	irc_send(irc, buf);
+	g_free(buf);
+
+	return 0;
+}
+
+int
 irc_cmd_kick(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
 {
 	char *buf;
