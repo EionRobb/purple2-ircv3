@@ -1145,6 +1145,56 @@ irc_msg_time(struct irc_conn *irc, const char *name, const char *from, char **ar
 }
 
 void
+irc_msg_help(struct irc_conn *irc, const char *name, const char *from, char **args)
+{
+	PurpleConnection *gc = purple_account_get_connection(irc->account);
+	if (!gc || !args)
+		return;
+
+	const char *text = (args[1] && args[2]) ? args[2] : (args[1] ? args[1] : args[0]);
+	if (!text || !*text)
+		return;
+
+	char *escaped = g_markup_escape_text(text, -1);
+	PurpleConversation *conv = NULL;
+	if (gc->buddy_chats)
+		conv = PURPLE_CONV_CHAT(gc->buddy_chats->data)->conv;
+	if (conv) {
+		purple_conversation_write(conv, "", escaped, PURPLE_MESSAGE_SYSTEM | PURPLE_MESSAGE_NO_LOG, time(NULL));
+	} else {
+		purple_notify_info(gc, _("IRC Help"), text, NULL);
+	}
+	g_free(escaped);
+}
+
+void
+irc_msg_info_reply(struct irc_conn *irc, const char *name, const char *from, char **args)
+{
+	PurpleConnection *gc = purple_account_get_connection(irc->account);
+	if (!gc || !args)
+		return;
+
+	int i;
+	const char *text = NULL;
+	for (i = 0; args[i] != NULL; i++) {
+		text = args[i];
+	}
+	if (!text || !*text)
+		return;
+
+	char *escaped = g_markup_escape_text(text, -1);
+	PurpleConversation *conv = NULL;
+	if (gc->buddy_chats)
+		conv = PURPLE_CONV_CHAT(gc->buddy_chats->data)->conv;
+	if (conv) {
+		purple_conversation_write(conv, "", escaped, PURPLE_MESSAGE_SYSTEM | PURPLE_MESSAGE_NO_LOG, time(NULL));
+	} else {
+		purple_debug_info("irc", "%s: %s\n", name, text);
+	}
+	g_free(escaped);
+}
+
+void
 irc_msg_nochan(struct irc_conn *irc, const char *name, const char *from, char **args)
 {
 	PurpleConnection *gc = purple_account_get_connection(irc->account);

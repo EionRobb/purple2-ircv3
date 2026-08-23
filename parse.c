@@ -77,8 +77,16 @@ static struct _irc_msg {
 	void (*cb)(struct irc_conn *irc, const char *name, const char *from, char **args);
 } _irc_msgs[] = {
 	{ "005", "n*", 2, irc_msg_features },	   /* Feature list			*/
+	{ "211", "*", 0, irc_msg_info_reply },	   /* RPL_STATSLINKINFO		*/
+	{ "212", "*", 0, irc_msg_info_reply },	   /* RPL_STATSCOMMANDS		*/
+	{ "219", "*", 0, irc_msg_info_reply },	   /* RPL_ENDOFSTATS		*/
+	{ "249", "*", 0, irc_msg_info_reply },	   /* RPL_STATS				*/
 	{ "251", "n:", 1, irc_msg_luser },		   /* Client & Server count	*/
 	{ "255", "n:", 1, irc_msg_luser },		   /* Client & Server count Mk. II	*/
+	{ "256", "*", 0, irc_msg_info_reply },	   /* RPL_ADMINME			*/
+	{ "257", "*", 0, irc_msg_info_reply },	   /* RPL_ADMINLOC1			*/
+	{ "258", "*", 0, irc_msg_info_reply },	   /* RPL_ADMINLOC2			*/
+	{ "259", "*", 0, irc_msg_info_reply },	   /* RPL_ADMINEMAIL		*/
 	{ "275", "nn:", 3, irc_msg_whois },		   /* RPL_WHOISSECURE (Unreal)	*/
 	{ "276", "nn:", 3, irc_msg_whois },		   /* RPL_WHOISCERTFP		*/
 	{ "301", "nn:", 3, irc_msg_away },		   /* User is away			*/
@@ -87,18 +95,17 @@ static struct _irc_msg {
 	{ "311", "nnvvv:", 6, irc_msg_whois },	   /* Whois user			*/
 	{ "312", "nnv:", 4, irc_msg_whois },	   /* Whois server			*/
 	{ "313", "nn:", 2, irc_msg_whois },		   /* Whois ircop			*/
+	{ "314", "nnnvv:", 6, irc_msg_whois },	   /* Whowas user			*/
+	{ "315", "nt:", 0, irc_msg_who },		   /* end of WHO channel		*/
 	{ "317", "nnvv", 3, irc_msg_whois },	   /* Whois idle			*/
 	{ "318", "nt:", 2, irc_msg_endwhois },	   /* End of WHOIS			*/
 	{ "319", "nn:", 3, irc_msg_whois },		   /* Whois channels		*/
 	{ "320", "nn:", 2, irc_msg_whois },		   /* Whois (fn ident)		*/
-	{ "330", "nnv:", 4, irc_msg_whois },	   /* Whois (fn login)		*/
-	{ "314", "nnnvv:", 6, irc_msg_whois },	   /* Whowas user			*/
-	{ "315", "nt:", 0, irc_msg_who },		   /* end of WHO channel		*/
-	{ "369", "nt:", 2, irc_msg_endwhois },	   /* End of WHOWAS		*/
 	{ "321", "*", 0, irc_msg_list },		   /* Start of list		*/
 	{ "322", "ncv:", 4, irc_msg_list },		   /* List.			*/
 	{ "323", ":", 0, irc_msg_list },		   /* End of list.			*/
 	{ "324", "ncv:", 3, irc_msg_chanmode },	   /* Channel modes		*/
+	{ "330", "nnv:", 4, irc_msg_whois },	   /* Whois (fn login)		*/
 	{ "331", "nc:", 3, irc_msg_topic },		   /* No channel topic		*/
 	{ "332", "nc:", 3, irc_msg_topic },		   /* Channel topic		*/
 	{ "333", "ncvv", 4, irc_msg_topicinfo },   /* Topic setter stuff		*/
@@ -107,21 +114,25 @@ static struct _irc_msg {
 	{ "352", "ncvvvnv:", 8, irc_msg_who },	   /* Channel WHO			*/
 	{ "354", "nvvvvvvv:", 9, irc_msg_whox },   /* Extended WHO (WHOX) reply	*/
 	{ "353", "nvc:", 4, irc_msg_names },	   /* Names list			*/
+	{ "364", "*", 0, irc_msg_info_reply },	   /* RPL_LINKS				*/
+	{ "365", "*", 0, irc_msg_info_reply },	   /* RPL_ENDOFLINKS		*/
 	{ "366", "nc:", 2, irc_msg_names },		   /* End of names			*/
 	{ "367", "ncnnv", 3, irc_msg_ban },		   /* Ban list			*/
 	{ "368", "nc:", 2, irc_msg_ban },		   /* End of ban list		*/
+	{ "369", "nt:", 2, irc_msg_endwhois },	   /* End of WHOWAS		*/
+	{ "371", "*", 0, irc_msg_info_reply },	   /* RPL_INFO				*/
 	{ "372", "n:", 1, irc_msg_motd },		   /* MOTD				*/
+	{ "374", "*", 0, irc_msg_info_reply },	   /* RPL_ENDOFINFO			*/
 	{ "375", "n:", 1, irc_msg_motd },		   /* Start MOTD			*/
 	{ "376", "n:", 1, irc_msg_motd },		   /* End of MOTD			*/
 	{ "378", "nn:", 3, irc_msg_whois },		   /* RPL_WHOISHOST		*/
 	{ "379", "nn:", 3, irc_msg_whois },		   /* RPL_WHOISMODES		*/
 	{ "391", "nv:", 3, irc_msg_time },		   /* Time reply			*/
-	{ "671", "nn:", 3, irc_msg_whois },		   /* RPL_WHOISSECURE (Solanum)	*/
 	{ "401", "nt:", 2, irc_msg_nonick },	   /* No such nick/chan		*/
-	{ "406", "nt:", 2, irc_msg_nonick },	   /* No such nick for WHOWAS	*/
 	{ "403", "nc:", 2, irc_msg_nochan },	   /* No such channel		*/
 	{ "404", "nt:", 3, irc_msg_nosend },	   /* Cannot send to chan		*/
 	{ "405", "nc:", 2, irc_msg_toomanychan },  /* Joined too many channels	*/
+	{ "406", "nt:", 2, irc_msg_nonick },	   /* No such nick for WHOWAS	*/
 	{ "421", "nv:", 2, irc_msg_unknown },	   /* Unknown command		*/
 	{ "422", "n:", 1, irc_msg_motd },		   /* MOTD file missing		*/
 	{ "432", "vn:", 0, irc_msg_badnick },	   /* Erroneous nickname		*/
@@ -140,6 +151,10 @@ static struct _irc_msg {
 	{ "501", "n:", 2, irc_msg_badmode },	   /* Unknown mode flag		*/
 	{ "506", "nc:", 3, irc_msg_nosend },	   /* Must identify to send	*/
 	{ "515", "nc:", 3, irc_msg_regonly },	   /* Registration required	*/
+	{ "671", "nn:", 3, irc_msg_whois },		   /* RPL_WHOISSECURE (Solanum)	*/
+	{ "704", "nv:", 2, irc_msg_help },		   /* RPL_HELPSTART (IRCv3)	*/
+	{ "705", "nv:", 2, irc_msg_help },		   /* RPL_HELPTXT (IRCv3)	*/
+	{ "706", "nv:", 2, irc_msg_help },		   /* RPL_ENDOFHELP (IRCv3)	*/
 	{ "710", "ncv:", 4, irc_msg_knock },	   /* RPL_KNOCK				*/
 	{ "711", "nc:", 3, irc_msg_knockdlvr },	   /* RPL_KNOCKDLVR			*/
 	{ "712", "nc:", 3, irc_msg_knockerr },	   /* ERR_TOOMANYKNOCK		*/
@@ -191,44 +206,71 @@ static struct _irc_user_cmd {
 	char *help;
 } _irc_cmds[] = {
 	{ "action", ":", irc_cmd_ctcp_action, N_("action &lt;action to perform&gt;:  Perform an action.") },
-	{ "authserv", ":", irc_cmd_service, N_("authserv: Send a command to authserv") },
+	{ "admin", ":", irc_cmd_admin, N_("admin [server]:  Display administrative information about the server.") },
+	{ "authserv", ":", irc_cmd_service, N_("authserv:  Send a command to authserv") },
 	{ "away", ":", irc_cmd_away, N_("away [message]:  Set an away message, or use no message to return from being away.") },
-	{ "ctcp", "t:", irc_cmd_ctcp, N_("ctcp <nick> <msg>: sends ctcp msg to nick.") },
-	{ "chanserv", ":", irc_cmd_service, N_("chanserv: Send a command to chanserv") },
+	{ "ban", ":", irc_cmd_ban, N_("ban [nick|mask]:  Ban a user or mask from the channel, or list current bans.") },
+	{ "botserv", ":", irc_cmd_service, N_("botserv:  Send a command to botserv") },
+	{ "bs", ":", irc_cmd_service, N_("bs:  Send a command to botserv") },
+	{ "chanserv", ":", irc_cmd_service, N_("chanserv:  Send a command to chanserv") },
 	{ "chathistory", "*", irc_cmd_chathistory, N_("chathistory [LATEST|BEFORE|AFTER] [target] [ref] [limit]: Request chat history from server/bouncer.") },
+	{ "cs", ":", irc_cmd_service, N_("cs:  Send a command to chanserv") },
+	{ "ctcp", "t:", irc_cmd_ctcp, N_("ctcp <nick> <msg>:  sends ctcp msg to nick.") },
+	{ "cycle", ":", irc_cmd_cycle, N_("cycle [channel] [message]:  Part and immediately rejoin the current or specified channel.") },
 	{ "deop", ":", irc_cmd_op, N_("deop &lt;nick1&gt; [nick2] ...:  Remove channel operator status from someone. You must be a channel operator to do this.") },
 	{ "devoice", ":", irc_cmd_op, N_("devoice &lt;nick1&gt; [nick2] ...:  Remove channel voice status from someone, preventing them from speaking if the channel is moderated (+m). You must be a channel operator to do this.") },
+	{ "help", ":", irc_cmd_help, N_("help [topic]:  Display IRC server help on a command or topic.") },
+	{ "hop", ":", irc_cmd_cycle, N_("hop [channel] [message]:  Part and immediately rejoin the current or specified channel.") },
+	{ "hostserv", ":", irc_cmd_service, N_("hostserv:  Send a command to hostserv") },
+	{ "hs", ":", irc_cmd_service, N_("hs:  Send a command to hostserv") },
+	{ "info", ":", irc_cmd_info, N_("info [server]:  Display information about the server software and developers.") },
 	{ "invite", ":", irc_cmd_invite, N_("invite &lt;nick&gt; [room]:  Invite someone to join you in the specified channel, or the current channel.") },
 	{ "j", "cv", irc_cmd_join, N_("j &lt;room1&gt;[,room2][,...] [key1[,key2][,...]]:  Enter one or more channels, optionally providing a channel key for each if needed.") },
 	{ "join", "cv", irc_cmd_join, N_("join &lt;room1&gt;[,room2][,...] [key1[,key2][,...]]:  Enter one or more channels, optionally providing a channel key for each if needed.") },
+	{ "kb", "n:", irc_cmd_kickban, N_("kb &lt;nick&gt; [message]:  Ban and kick someone from the current channel.") },
 	{ "kick", "n:", irc_cmd_kick, N_("kick &lt;nick&gt; [message]:  Remove someone from a channel. You must be a channel operator to do this.") },
+	{ "kickban", "n:", irc_cmd_kickban, N_("kickban &lt;nick&gt; [message]:  Ban and kick someone from the current channel.") },
 	{ "knock", "c:", irc_cmd_knock, N_("knock &lt;channel&gt; [message]:  Request an invite to an invite-only channel.") },
+	{ "links", ":", irc_cmd_links, N_("links [remote] [mask]:  List servers linked to the IRC network.") },
 	{ "list", ":", irc_cmd_list, N_("list:  Display a list of chat rooms on the network. <i>Warning, some servers may disconnect you upon doing this.</i>") },
+	{ "lusers", ":", irc_cmd_lusers, N_("lusers [mask] [server]:  Display current user, channel, and server counts.") },
 	{ "me", ":", irc_cmd_ctcp_action, N_("me &lt;action to perform&gt;:  Perform an action.") },
-	{ "memoserv", ":", irc_cmd_service, N_("memoserv: Send a command to memoserv") },
+	{ "memoserv", ":", irc_cmd_service, N_("memoserv:  Send a command to memoserv") },
 	{ "mode", ":", irc_cmd_mode, N_("mode &lt;+|-&gt;&lt;A-Za-z&gt; &lt;nick|channel&gt;:  Set or unset a channel or user mode.") },
+	{ "motd", ":", irc_cmd_motd, N_("motd [server]:  Display the Message of the Day from the server.") },
+	{ "ms", ":", irc_cmd_service, N_("ms:  Send a command to memoserv") },
 	{ "msg", "t:", irc_cmd_privmsg, N_("msg &lt;nick&gt; &lt;message&gt;:  Send a private message to a user (as opposed to a channel).") },
+	{ "mute", ":", irc_cmd_quiet, N_("mute [nick|mask]:  Mute/quiet a user or mask in the channel.") },
 	{ "names", "c", irc_cmd_names, N_("names [channel]:  List the users currently in a channel.") },
 	{ "nick", "n", irc_cmd_nick, N_("nick &lt;new nickname&gt;:  Change your nickname.") },
-	{ "nickserv", ":", irc_cmd_service, N_("nickserv: Send a command to nickserv") },
+	{ "nickserv", ":", irc_cmd_service, N_("nickserv:  Send a command to nickserv") },
 	{ "notice", "t:", irc_cmd_privmsg, N_("notice &lt;target&lt;:  Send a notice to a user or channel.") },
+	{ "ns", ":", irc_cmd_service, N_("ns:  Send a command to nickserv") },
 	{ "op", ":", irc_cmd_op, N_("op &lt;nick1&gt; [nick2] ...:  Grant channel operator status to someone. You must be a channel operator to do this.") },
+	{ "operserv", ":", irc_cmd_service, N_("operserv:  Send a command to operserv") },
 	{ "operwall", ":", irc_cmd_wallops, N_("operwall &lt;message&gt;:  If you don't know what this is, you probably can't use it.") },
-	{ "operserv", ":", irc_cmd_service, N_("operserv: Send a command to operserv") },
+	{ "os", ":", irc_cmd_service, N_("os:  Send a command to operserv") },
 	{ "part", "c:", irc_cmd_part, N_("part [room] [message]:  Leave the current channel, or a specified channel, with an optional message.") },
 	{ "ping", "n", irc_cmd_ping, N_("ping [nick]:  Asks how much lag a user (or the server if no user specified) has.") },
 	{ "query", "n:", irc_cmd_query, N_("query &lt;nick&gt; &lt;message&gt;:  Send a private message to a user (as opposed to a channel).") },
+	{ "quiet", ":", irc_cmd_quiet, N_("quiet [nick|mask]:  Quiet a user or mask in the channel, or list quiets.") },
 	{ "quit", ":", irc_cmd_quit, N_("quit [message]:  Disconnect from the server, with an optional message.") },
 	{ "quote", "*", irc_cmd_quote, N_("quote [...]:  Send a raw command to the server.") },
+	{ "raw", "*", irc_cmd_quote, N_("raw [...]:  Send a raw command to the server.") },
 	{ "remove", "n:", irc_cmd_remove, N_("remove &lt;nick&gt; [message]:  Remove someone from a room. You must be a channel operator to do this.") },
-	{ "time", "", irc_cmd_time, N_("time: Displays the current local time at the IRC server.") },
+	{ "stats", ":", irc_cmd_stats, N_("stats &lt;query&gt; [server]:  Query server performance and statistics.") },
+	{ "time", "", irc_cmd_time, N_("time:  Displays the current local time at the IRC server.") },
 	{ "topic", ":", irc_cmd_topic, N_("topic [new topic]:  View or change the channel topic.") },
 	{ "umode", ":", irc_cmd_mode, N_("umode &lt;+|-&gt;&lt;A-Za-z&gt;:  Set or unset a user mode.") },
-	{ "version", ":", irc_cmd_ctcp_version, N_("version [nick]: send CTCP VERSION request to a user") },
+	{ "unban", ":", irc_cmd_unban, N_("unban &lt;nick|mask&gt;:  Remove a ban from the current channel.") },
+	{ "unmute", ":", irc_cmd_unquiet, N_("unmute &lt;nick|mask&gt;:  Unmute a user in the current channel.") },
+	{ "unquiet", ":", irc_cmd_unquiet, N_("unquiet &lt;nick|mask&gt;:  Remove a quiet from the current channel.") },
+	{ "version", ":", irc_cmd_ctcp_version, N_("version [nick]:  send CTCP VERSION request to a user") },
 	{ "voice", ":", irc_cmd_op, N_("voice &lt;nick1&gt; [nick2] ...:  Grant channel voice status to someone. You must be a channel operator to do this.") },
 	{ "wallops", ":", irc_cmd_wallops, N_("wallops &lt;message&gt;:  If you don't know what this is, you probably can't use it.") },
+	{ "who", ":", irc_cmd_who, N_("who [mask]:  Query information on matching users or channel participants.") },
 	{ "whois", "tt", irc_cmd_whois, N_("whois [server] &lt;nick&gt;:  Get information on a user.") },
-	{ "whowas", "t", irc_cmd_whowas, N_("whowas &lt;nick&gt;: Get information on a user that has logged off.") },
+	{ "whowas", "t", irc_cmd_whowas, N_("whowas &lt;nick&gt;:  Get information on a user that has logged off.") },
 	{ NULL, NULL, NULL, NULL }
 };
 

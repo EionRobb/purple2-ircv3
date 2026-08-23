@@ -38,6 +38,10 @@ sudo make install
 
 ## Additional Features
 * **Modern IRC Protocol & Error Handling**: Comprehensive channel join error reporting for password-protected channels (`475` `+k`), full channels (`471` `+l`), invite-only channels (`473`), bans (`474`), channel limits (`405`), and invalid masks (`476`), invitation confirmation (`341` `RPL_INVITING`), KNOCK support (`/knock` command, `710` `RPL_KNOCK` channel notifications, `711` delivery confirmation, and `712`-`715` error diagnostics), as well as expanded WHOIS metadata reporting (TLS connection ciphers, real connecting host/IP, cert fingerprints, user modes, and bot status).
+* **Comprehensive Slash Commands & Aliases**:
+  * **Services**: Shortcuts for `/ns` (NickServ), `/cs` (ChanServ), `/ms` (MemoServ), `/os` (OperServ), `/hs` / `/hostserv` (HostServ), `/bs` / `/botserv` (BotServ), `/authserv`.
+  * **Channel Moderation**: `/ban` and `/unban` (with automatic nickname-to-hostmask resolution), `/kb` / `/kickban` (ban mask and kick in one step), `/quiet` / `/mute`, `/unquiet` / `/unmute`, and `/cycle` / `/hop` (part and immediately rejoin active channel).
+  * **Server & Discovery**: `/help` (interactive IRC help `704`-`706`), `/who`, `/motd`, `/admin`, `/info`, `/stats`, `/lusers`, `/links`, and `/raw` (alias for `/quote`).
 * **Attention / Nudges**: ASCII `\007` (BEL) integration with Pidgin's native Nudge/Attention API to shake/flash windows and play sound alerts on incoming nudges, as well as sending nudges via `/nudge` or the UI button.
 * **URI Handling**: Native `irc://` and `ircs://` protocol handler support for opening IRC links directly in Pidgin.
 * **Extended Text Formatting & Colors**: Bidirectional formatting support (aka MIRC colours) including bold, italics (`\x1D`), underline, strikethrough (`\x1E`), monospace (`\x11`), reverse video (`\x16`), 24-bit RGB hex colors (`\x04`), and extended 16-98 mIRC color palettes.

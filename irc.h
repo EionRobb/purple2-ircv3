@@ -454,9 +454,42 @@ irc_cmd_wallops(struct irc_conn *irc, const char *cmd, const char *target, const
 int
 irc_cmd_chathistory(struct irc_conn *irc, const char *cmd, const char *target, const char **args);
 int
+irc_cmd_ban(struct irc_conn *irc, const char *cmd, const char *target, const char **args);
+int
+irc_cmd_unban(struct irc_conn *irc, const char *cmd, const char *target, const char **args);
+int
+irc_cmd_kickban(struct irc_conn *irc, const char *cmd, const char *target, const char **args);
+int
+irc_cmd_quiet(struct irc_conn *irc, const char *cmd, const char *target, const char **args);
+int
+irc_cmd_unquiet(struct irc_conn *irc, const char *cmd, const char *target, const char **args);
+int
+irc_cmd_cycle(struct irc_conn *irc, const char *cmd, const char *target, const char **args);
+int
+irc_cmd_help(struct irc_conn *irc, const char *cmd, const char *target, const char **args);
+int
+irc_cmd_who(struct irc_conn *irc, const char *cmd, const char *target, const char **args);
+int
+irc_cmd_motd(struct irc_conn *irc, const char *cmd, const char *target, const char **args);
+int
+irc_cmd_admin(struct irc_conn *irc, const char *cmd, const char *target, const char **args);
+int
+irc_cmd_info(struct irc_conn *irc, const char *cmd, const char *target, const char **args);
+int
+irc_cmd_stats(struct irc_conn *irc, const char *cmd, const char *target, const char **args);
+int
+irc_cmd_lusers(struct irc_conn *irc, const char *cmd, const char *target, const char **args);
+int
+irc_cmd_links(struct irc_conn *irc, const char *cmd, const char *target, const char **args);
+int
 irc_cmd_whois(struct irc_conn *irc, const char *cmd, const char *target, const char **args);
 int
 irc_cmd_whowas(struct irc_conn *irc, const char *cmd, const char *target, const char **args);
+
+void
+irc_msg_help(struct irc_conn *irc, const char *name, const char *from, char **args);
+void
+irc_msg_info_reply(struct irc_conn *irc, const char *name, const char *from, char **args);
 
 void
 irc_set_last_msg_time(struct irc_conn *irc, const char *target, const char *iso_timestamp);

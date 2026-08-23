@@ -687,8 +687,21 @@ irc_cmd_service(struct irc_conn *irc, const char *cmd, const char *target, const
 	if (!args || !args[0])
 		return 0;
 
-	/* cmd will be one of nickserv, chanserv, memoserv or operserv */
-	capital_cmd = g_ascii_strup(cmd, -1);
+	if (g_ascii_strcasecmp(cmd, "ns") == 0)
+		capital_cmd = g_strdup("NICKSERV");
+	else if (g_ascii_strcasecmp(cmd, "cs") == 0)
+		capital_cmd = g_strdup("CHANSERV");
+	else if (g_ascii_strcasecmp(cmd, "ms") == 0)
+		capital_cmd = g_strdup("MEMOSERV");
+	else if (g_ascii_strcasecmp(cmd, "os") == 0)
+		capital_cmd = g_strdup("OPERSERV");
+	else if (g_ascii_strcasecmp(cmd, "hs") == 0)
+		capital_cmd = g_strdup("HOSTSERV");
+	else if (g_ascii_strcasecmp(cmd, "bs") == 0)
+		capital_cmd = g_strdup("BOTSERV");
+	else
+		capital_cmd = g_ascii_strup(cmd, -1);
+
 	buf = irc_format(irc, "v:", capital_cmd, args[0]);
 	irc_send(irc, buf);
 	g_free(capital_cmd);
@@ -706,6 +719,329 @@ irc_cmd_time(struct irc_conn *irc, const char *cmd, const char *target, const ch
 	irc_send(irc, buf);
 	g_free(buf);
 
+	return 0;
+}
+
+static char *
+irc_resolve_ban_mask(struct irc_conn *irc, const char *channel, const char *nick_or_mask)
+{
+	if (!nick_or_mask || !*nick_or_mask)
+		return NULL;
+
+	if (strchr(nick_or_mask, '!') || strchr(nick_or_mask, '@'))
+		return g_strdup(nick_or_mask);
+
+	PurpleConversation *convo = purple_find_conversation_with_account(PURPLE_CONV_TYPE_CHAT, channel, irc->account);
+	if (convo) {
+		PurpleConvChatBuddy *cb = purple_conv_chat_cb_find(PURPLE_CONV_CHAT(convo), nick_or_mask);
+		if (cb) {
+			const char *uh = purple_conv_chat_cb_get_attribute(cb, "userhost");
+			if (uh && *uh) {
+				const char *at = strchr(uh, '@');
+				if (at)
+					return g_strdup_printf("*!*@%s", at + 1);
+				else
+					return g_strdup_printf("*!*@%s", uh);
+			}
+		}
+	}
+
+	return g_strdup_printf("%s!*@*", nick_or_mask);
+}
+
+int
+irc_cmd_ban(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
+{
+	char *buf;
+	const char *channel = (target && irc_ischannel(target)) ? target : NULL;
+
+	if (!channel)
+		return 0;
+
+	if (!args || !args[0] || !*args[0]) {
+		/* List bans: MODE <chan> +b */
+		buf = irc_format(irc, "vcv", "MODE", channel, "+b");
+		irc_send(irc, buf);
+		g_free(buf);
+		return 0;
+	}
+
+	gchar **targets = g_strsplit(args[0], " ", -1);
+	int i;
+	for (i = 0; targets[i] != NULL; i++) {
+		if (!*targets[i]) continue;
+		char *mask = irc_resolve_ban_mask(irc, channel, targets[i]);
+		if (mask) {
+			buf = irc_format(irc, "vcvv", "MODE", channel, "+b", mask);
+			irc_send(irc, buf);
+			g_free(buf);
+			g_free(mask);
+		}
+	}
+	g_strfreev(targets);
+	return 0;
+}
+
+int
+irc_cmd_unban(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
+{
+	char *buf;
+	const char *channel = (target && irc_ischannel(target)) ? target : NULL;
+
+	if (!channel || !args || !args[0] || !*args[0])
+		return 0;
+
+	gchar **targets = g_strsplit(args[0], " ", -1);
+	int i;
+	for (i = 0; targets[i] != NULL; i++) {
+		if (!*targets[i]) continue;
+		char *mask = irc_resolve_ban_mask(irc, channel, targets[i]);
+		if (mask) {
+			buf = irc_format(irc, "vcvv", "MODE", channel, "-b", mask);
+			irc_send(irc, buf);
+			g_free(buf);
+			g_free(mask);
+		}
+	}
+	g_strfreev(targets);
+	return 0;
+}
+
+int
+irc_cmd_kickban(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
+{
+	char *buf;
+	const char *channel = (target && irc_ischannel(target)) ? target : NULL;
+
+	if (!channel || !args || !args[0] || !*args[0])
+		return 0;
+
+	char *nick = g_strdup(args[0]);
+	char *reason = (args[1] && *args[1]) ? g_strdup(args[1]) : NULL;
+
+	char *mask = irc_resolve_ban_mask(irc, channel, nick);
+	if (mask) {
+		buf = irc_format(irc, "vcvv", "MODE", channel, "+b", mask);
+		irc_send(irc, buf);
+		g_free(buf);
+		g_free(mask);
+	}
+
+	if (reason && *reason)
+		buf = irc_format(irc, "vcv:", "KICK", channel, nick, reason);
+	else
+		buf = irc_format(irc, "vcv", "KICK", channel, nick);
+	irc_send(irc, buf);
+	g_free(buf);
+	g_free(nick);
+	g_free(reason);
+
+	return 0;
+}
+
+int
+irc_cmd_quiet(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
+{
+	char *buf;
+	const char *channel = (target && irc_ischannel(target)) ? target : NULL;
+
+	if (!channel)
+		return 0;
+
+	if (!args || !args[0] || !*args[0]) {
+		buf = irc_format(irc, "vcv", "MODE", channel, "+q");
+		irc_send(irc, buf);
+		g_free(buf);
+		return 0;
+	}
+
+	gchar **targets = g_strsplit(args[0], " ", -1);
+	int i;
+	for (i = 0; targets[i] != NULL; i++) {
+		if (!*targets[i]) continue;
+		char *mask = irc_resolve_ban_mask(irc, channel, targets[i]);
+		if (mask) {
+			buf = irc_format(irc, "vcvv", "MODE", channel, "+q", mask);
+			irc_send(irc, buf);
+			g_free(buf);
+			g_free(mask);
+		}
+	}
+	g_strfreev(targets);
+	return 0;
+}
+
+int
+irc_cmd_unquiet(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
+{
+	char *buf;
+	const char *channel = (target && irc_ischannel(target)) ? target : NULL;
+
+	if (!channel || !args || !args[0] || !*args[0])
+		return 0;
+
+	gchar **targets = g_strsplit(args[0], " ", -1);
+	int i;
+	for (i = 0; targets[i] != NULL; i++) {
+		if (!*targets[i]) continue;
+		char *mask = irc_resolve_ban_mask(irc, channel, targets[i]);
+		if (mask) {
+			buf = irc_format(irc, "vcvv", "MODE", channel, "-q", mask);
+			irc_send(irc, buf);
+			g_free(buf);
+			g_free(mask);
+		}
+	}
+	g_strfreev(targets);
+	return 0;
+}
+
+int
+irc_cmd_cycle(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
+{
+	char *buf;
+	const char *channel = (args && args[0] && irc_ischannel(args[0])) ? args[0] : target;
+
+	if (!channel || !irc_ischannel(channel))
+		return 0;
+
+	const char *part_msg = (args && args[0] && !irc_ischannel(args[0])) ? args[0] : (args && args[1] ? args[1] : "Cycling");
+
+	buf = irc_format(irc, "vc:", "PART", channel, part_msg);
+	irc_priority_send(irc, buf);
+	g_free(buf);
+
+	buf = irc_format(irc, "vc", "JOIN", channel);
+	irc_send(irc, buf);
+	g_free(buf);
+
+	return 0;
+}
+
+int
+irc_cmd_help(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
+{
+	char *buf;
+
+	if (args && args[0] && *args[0])
+		buf = irc_format(irc, "v:", "HELP", args[0]);
+	else
+		buf = irc_format(irc, "v", "HELP");
+
+	irc_send(irc, buf);
+	g_free(buf);
+	return 0;
+}
+
+int
+irc_cmd_who(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
+{
+	char *buf;
+	const char *query = (args && args[0] && *args[0]) ? args[0] : target;
+
+	if (!query || !*query)
+		return 0;
+
+	buf = irc_format(irc, "vv", "WHO", query);
+	irc_send(irc, buf);
+	g_free(buf);
+	return 0;
+}
+
+int
+irc_cmd_motd(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
+{
+	char *buf;
+
+	if (args && args[0] && *args[0])
+		buf = irc_format(irc, "vv", "MOTD", args[0]);
+	else
+		buf = irc_format(irc, "v", "MOTD");
+
+	irc_send(irc, buf);
+	g_free(buf);
+	return 0;
+}
+
+int
+irc_cmd_admin(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
+{
+	char *buf;
+
+	if (args && args[0] && *args[0])
+		buf = irc_format(irc, "vv", "ADMIN", args[0]);
+	else
+		buf = irc_format(irc, "v", "ADMIN");
+
+	irc_send(irc, buf);
+	g_free(buf);
+	return 0;
+}
+
+int
+irc_cmd_info(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
+{
+	char *buf;
+
+	if (args && args[0] && *args[0])
+		buf = irc_format(irc, "vv", "INFO", args[0]);
+	else
+		buf = irc_format(irc, "v", "INFO");
+
+	irc_send(irc, buf);
+	g_free(buf);
+	return 0;
+}
+
+int
+irc_cmd_stats(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
+{
+	char *buf;
+
+	if (!args || !args[0] || !*args[0])
+		return 0;
+
+	if (args[1] && *args[1])
+		buf = irc_format(irc, "vvv", "STATS", args[0], args[1]);
+	else
+		buf = irc_format(irc, "vv", "STATS", args[0]);
+
+	irc_send(irc, buf);
+	g_free(buf);
+	return 0;
+}
+
+int
+irc_cmd_lusers(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
+{
+	char *buf;
+
+	if (args && args[0] && args[1])
+		buf = irc_format(irc, "vvv", "LUSERS", args[0], args[1]);
+	else if (args && args[0])
+		buf = irc_format(irc, "vv", "LUSERS", args[0]);
+	else
+		buf = irc_format(irc, "v", "LUSERS");
+
+	irc_send(irc, buf);
+	g_free(buf);
+	return 0;
+}
+
+int
+irc_cmd_links(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
+{
+	char *buf;
+
+	if (args && args[0] && args[1])
+		buf = irc_format(irc, "vvv", "LINKS", args[0], args[1]);
+	else if (args && args[0])
+		buf = irc_format(irc, "vv", "LINKS", args[0]);
+	else
+		buf = irc_format(irc, "v", "LINKS");
+
+	irc_send(irc, buf);
+	g_free(buf);
 	return 0;
 }
 
