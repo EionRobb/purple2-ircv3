@@ -692,14 +692,15 @@ irc_msg_whox(struct irc_conn *irc, const char *name, const char *from, char **ar
 	PurpleConversation *conv;
 	PurpleConvChat *chat;
 	PurpleConvChatBuddy *cb;
+	PurpleBuddy *buddy;
 
 	const char *chan = args[2];
 	const char *user = args[3];
-	const char *host = args[5];
-	const char *nick = args[7];
-	const char *flags_str = args[8];
-	const char *account = args[11];
-	const char *realname = args[13];
+	const char *host = args[4];
+	const char *nick = args[5];
+	const char *flags_str = args[6];
+	const char *account = args[7];
+	const char *realname = args[8];
 
 	char *userhost;
 	GList *keys = NULL, *values = NULL;
@@ -710,32 +711,40 @@ irc_msg_whox(struct irc_conn *irc, const char *name, const char *from, char **ar
 		purple_prpl_got_user_status(irc->account, nick, "available", NULL);
 	}
 
-	conv = purple_find_conversation_with_account(PURPLE_CONV_TYPE_CHAT, chan, irc->account);
-	if (!conv)
-		return;
-
-	cb = purple_conv_chat_cb_find(PURPLE_CONV_CHAT(conv), nick);
-	if (!cb)
-		return;
-
-	chat = PURPLE_CONV_CHAT(conv);
-
 	userhost = g_strdup_printf("%s@%s", user, host);
 
-	keys = g_list_prepend(keys, "userhost");
-	values = g_list_prepend(values, userhost);
+	conv = purple_find_conversation_with_account(PURPLE_CONV_TYPE_CHAT, chan, irc->account);
+	if (conv) {
+		chat = PURPLE_CONV_CHAT(conv);
+		cb = purple_conv_chat_cb_find(chat, nick);
+		if (cb) {
+			PurpleConvChatBuddyFlags flags = cb->flags;
 
-	keys = g_list_prepend(keys, "realname");
-	values = g_list_prepend(values, (gpointer) realname);
+			keys = g_list_prepend(keys, "userhost");
+			values = g_list_prepend(values, userhost);
 
-	if (account && strcmp(account, "0") != 0) {
-		keys = g_list_prepend(keys, "account");
-		values = g_list_prepend(values, (gpointer) account);
+			keys = g_list_prepend(keys, "realname");
+			values = g_list_prepend(values, (gpointer) realname);
+
+			if (account && strcmp(account, "0") != 0 && strcmp(account, "*") != 0) {
+				keys = g_list_prepend(keys, "account");
+				values = g_list_prepend(values, (gpointer) account);
+			}
+
+			purple_conv_chat_cb_set_attributes(chat, cb, keys, values);
+
+			if (flags_str[0] == 'G' && !(flags & PURPLE_CBFLAGS_AWAY)) {
+				purple_conv_chat_user_set_flags(chat, cb->name, flags | PURPLE_CBFLAGS_AWAY);
+			} else if (flags_str[0] == 'H' && (flags & PURPLE_CBFLAGS_AWAY)) {
+				purple_conv_chat_user_set_flags(chat, cb->name, flags & ~PURPLE_CBFLAGS_AWAY);
+			}
+
+			g_list_free(keys);
+			g_list_free(values);
+		}
 	}
 
-	purple_conv_chat_cb_set_attributes(chat, cb, keys, values);
-
-	PurpleBuddy *buddy = purple_find_buddy(irc->account, nick);
+	buddy = purple_find_buddy(irc->account, nick);
 	if (buddy) {
 		if (account && strcmp(account, "0") != 0 && strcmp(account, "*") != 0) {
 			purple_blist_node_set_string(PURPLE_BLIST_NODE(buddy), "account", account);
@@ -745,15 +754,7 @@ irc_msg_whox(struct irc_conn *irc, const char *name, const char *from, char **ar
 		}
 	}
 
-	g_list_free(keys);
-	g_list_free(values);
 	g_free(userhost);
-
-	if (flags_str[0] == 'G' && !(cb->flags & PURPLE_CBFLAGS_AWAY)) {
-		purple_conv_chat_user_set_flags(chat, cb->name, cb->flags | PURPLE_CBFLAGS_AWAY);
-	} else if (flags_str[0] == 'H' && (cb->flags & PURPLE_CBFLAGS_AWAY)) {
-		purple_conv_chat_user_set_flags(chat, cb->name, cb->flags & ~PURPLE_CBFLAGS_AWAY);
-	}
 }
 
 void

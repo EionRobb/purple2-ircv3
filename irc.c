@@ -432,7 +432,7 @@ irc_send_who(struct irc_conn *irc, const char *target)
 		return;
 
 	if (irc->whox_supported) {
-		buf = irc_format(irc, "vtvv", "WHO", target, "%tcuihnsflar", "101");
+		buf = irc_format(irc, "vtv", "WHO", target, "%tcuhnafr,101");
 	} else {
 		buf = irc_format(irc, "vt", "WHO", target);
 	}

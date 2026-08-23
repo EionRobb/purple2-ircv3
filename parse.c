@@ -101,7 +101,7 @@ static struct _irc_msg {
 	{ "333", "ncvv", 4, irc_msg_topicinfo },   /* Topic setter stuff		*/
 	{ "335", "nn:", 2, irc_msg_whoisbot },	   /* RPL_WHOISBOT (bot-mode)	*/
 	{ "352", "ncvvvnv:", 8, irc_msg_who },	   /* Channel WHO			*/
-	{ "354", "nvvvvvvvvvvvv:", 14, irc_msg_whox }, /* Extended WHO (WHOX) reply	*/
+	{ "354", "nvvvvvvv:", 9, irc_msg_whox },   /* Extended WHO (WHOX) reply	*/
 	{ "353", "nvc:", 4, irc_msg_names },	   /* Names list			*/
 	{ "366", "nc:", 2, irc_msg_names },		   /* End of names			*/
 	{ "367", "ncnnv", 3, irc_msg_ban },		   /* Ban list			*/
