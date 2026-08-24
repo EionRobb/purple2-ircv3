@@ -1541,14 +1541,20 @@ irc_msg_join(struct irc_conn *irc, const char *name, const char *from, char **ar
 		time_t msg_time = irc_parse_server_time(irc, time(NULL));
 		convo = purple_find_conversation_with_account(PURPLE_CONV_TYPE_CHAT, chan, irc->account);
 		if (convo) {
-			char *msg;
 			if (!purple_utf8_strcasecmp(nick, purple_connection_get_display_name(gc))) {
-				msg = g_strdup_printf(_("You joined %s"), chan);
+				char *msg = g_strdup_printf(_("You entered the room."));
+				purple_conv_chat_write(PURPLE_CONV_CHAT(convo), "", msg, PURPLE_MESSAGE_SYSTEM | PURPLE_MESSAGE_NO_LOG, msg_time);
+				g_free(msg);
 			} else {
-				msg = g_strdup_printf(_("%s joined %s"), nick, chan);
+				gboolean quiet = GPOINTER_TO_INT(purple_signal_emit_return_1(
+					purple_conversations_get_handle(), "chat-buddy-joining", convo, nick, PURPLE_CBFLAGS_NONE));
+				if (!quiet) {
+					char *msg = g_strdup_printf(_("%s entered the room."), nick);
+					purple_conv_chat_write(PURPLE_CONV_CHAT(convo), "", msg, PURPLE_MESSAGE_SYSTEM | PURPLE_MESSAGE_NO_LOG, msg_time);
+					g_free(msg);
+				}
+				purple_signal_emit(purple_conversations_get_handle(), "chat-buddy-joined", convo, nick, PURPLE_CBFLAGS_NONE, TRUE);
 			}
-			purple_conv_chat_write(PURPLE_CONV_CHAT(convo), "", msg, PURPLE_MESSAGE_SYSTEM | PURPLE_MESSAGE_NO_LOG, msg_time);
-			g_free(msg);
 		}
 		g_free(nick);
 		g_free(chan);
@@ -1676,13 +1682,28 @@ irc_msg_kick(struct irc_conn *irc, const char *name, const char *from, char **ar
 
 	if (irc_is_batch_chathistory(irc)) {
 		time_t msg_time = irc_parse_server_time(irc, time(NULL));
-		if (!purple_utf8_strcasecmp(purple_connection_get_display_name(gc), args[1])) {
-			buf = g_strdup_printf(_("You were kicked by %s: (%s)"), nick, args[2]);
-		} else {
-			buf = g_strdup_printf(_("%s was kicked by %s (%s)"), args[1], nick, args[2]);
+		if (convo) {
+			if (!purple_utf8_strcasecmp(purple_connection_get_display_name(gc), args[1])) {
+				buf = (args[2] && *args[2]) ?
+					g_strdup_printf(_("You were kicked by %s: (%s)"), nick, args[2]) :
+					g_strdup_printf(_("You were kicked by %s"), nick);
+				purple_conv_chat_write(PURPLE_CONV_CHAT(convo), "", buf, PURPLE_MESSAGE_SYSTEM | PURPLE_MESSAGE_NO_LOG, msg_time);
+				g_free(buf);
+			} else {
+				char *reason = (args[2] && *args[2]) ?
+					g_strdup_printf(_("Kicked by %s (%s)"), nick, args[2]) :
+					g_strdup_printf(_("Kicked by %s"), nick);
+				gboolean quiet = GPOINTER_TO_INT(purple_signal_emit_return_1(
+					purple_conversations_get_handle(), "chat-buddy-leaving", convo, args[1], reason));
+				if (!quiet) {
+					buf = g_strdup_printf(_("%s left the room (%s)."), args[1], reason);
+					purple_conv_chat_write(PURPLE_CONV_CHAT(convo), "", buf, PURPLE_MESSAGE_SYSTEM | PURPLE_MESSAGE_NO_LOG, msg_time);
+					g_free(buf);
+				}
+				purple_signal_emit(purple_conversations_get_handle(), "chat-buddy-left", convo, args[1], reason);
+				g_free(reason);
+			}
 		}
-		purple_conv_chat_write(PURPLE_CONV_CHAT(convo), args[0], buf, PURPLE_MESSAGE_SYSTEM | PURPLE_MESSAGE_NO_LOG, msg_time);
-		g_free(buf);
 		g_free(nick);
 		return;
 	}
@@ -1796,7 +1817,7 @@ irc_msg_nick(struct irc_conn *irc, const char *name, const char *from, char **ar
 
 	if (irc_is_batch_chathistory(irc)) {
 		time_t msg_time = irc_parse_server_time(irc, time(NULL));
-		char *msg = g_strdup_printf(_("%s is now known as %s"), nick, args[0]);
+		char *msg = g_strdup_printf(_("%s is now known as %s."), nick, args[0]);
 		GSList *chats = gc->buddy_chats;
 		while (chats) {
 			PurpleConvChat *chat = PURPLE_CONV_CHAT(chats->data);
@@ -1924,24 +1945,28 @@ irc_msg_part(struct irc_conn *irc, const char *name, const char *from, char **ar
 
 	if (irc_is_batch_chathistory(irc)) {
 		time_t msg_time = irc_parse_server_time(irc, time(NULL));
-		if (!purple_utf8_strcasecmp(nick, purple_connection_get_display_name(gc))) {
-			char *escaped = args[1] ? g_markup_escape_text(args[1], -1) : NULL;
-			msg = g_strdup_printf(_("You parted the channel%s%s"),
-								  (args[1] && *args[1]) ? ": " : "",
-								  (escaped && *escaped) ? escaped : "");
-			g_free(escaped);
-			purple_conv_chat_write(PURPLE_CONV_CHAT(convo), channel, msg, PURPLE_MESSAGE_SYSTEM | PURPLE_MESSAGE_NO_LOG, msg_time);
-			g_free(msg);
-		} else {
-			char *escaped = args[1] ? g_markup_escape_text(args[1], -1) : NULL;
-			msg = g_strdup_printf(_("%s has parted %s%s%s"),
-								  nick, channel,
-								  (args[1] && *args[1]) ? ": " : "",
-								  (escaped && *escaped) ? escaped : "");
-			g_free(escaped);
-			purple_conv_chat_write(PURPLE_CONV_CHAT(convo), channel, msg, PURPLE_MESSAGE_SYSTEM | PURPLE_MESSAGE_NO_LOG, msg_time);
-			g_free(msg);
+		char *reason = (args[1] && *args[1]) ? irc_mirc2txt(args[1]) : NULL;
+		if (convo) {
+			if (!purple_utf8_strcasecmp(nick, purple_connection_get_display_name(gc))) {
+				msg = (reason && *reason) ?
+					g_strdup_printf(_("You have parted the channel (%s)."), reason) :
+					g_strdup(_("You have parted the channel."));
+				purple_conv_chat_write(PURPLE_CONV_CHAT(convo), "", msg, PURPLE_MESSAGE_SYSTEM | PURPLE_MESSAGE_NO_LOG, msg_time);
+				g_free(msg);
+			} else {
+				gboolean quiet = GPOINTER_TO_INT(purple_signal_emit_return_1(
+					purple_conversations_get_handle(), "chat-buddy-leaving", convo, nick, reason));
+				if (!quiet) {
+					msg = (reason && *reason) ?
+						g_strdup_printf(_("%s left the room (%s)."), nick, reason) :
+						g_strdup_printf(_("%s left the room."), nick);
+					purple_conv_chat_write(PURPLE_CONV_CHAT(convo), "", msg, PURPLE_MESSAGE_SYSTEM | PURPLE_MESSAGE_NO_LOG, msg_time);
+					g_free(msg);
+				}
+				purple_signal_emit(purple_conversations_get_handle(), "chat-buddy-left", convo, nick, reason);
+			}
 		}
+		g_free(reason);
 		g_free(nick);
 		return;
 	}
@@ -2303,19 +2328,24 @@ irc_msg_quit(struct irc_conn *irc, const char *name, const char *from, char **ar
 	if (irc_is_batch_chathistory(irc)) {
 		time_t msg_time = irc_parse_server_time(irc, time(NULL));
 		char *nick = irc_mask_nick(from);
-		char *escaped = args[0] ? g_markup_escape_text(args[0], -1) : NULL;
-		char *msg = g_strdup_printf(_("%s has quit%s%s"),
-									nick,
-									(args[0] && *args[0]) ? ": " : "",
-									(escaped && *escaped) ? escaped : "");
-		g_free(escaped);
+		char *reason = args[0] ? irc_mirc2txt(args[0]) : NULL;
+		char *quit_reason = (reason && *reason) ? g_strdup_printf("quit: %s", reason) : g_strdup("quit");
 		GSList *chats = gc->buddy_chats;
 		while (chats) {
 			PurpleConvChat *chat = PURPLE_CONV_CHAT(chats->data);
-			purple_conv_chat_write(chat, "", msg, PURPLE_MESSAGE_SYSTEM | PURPLE_MESSAGE_NO_LOG, msg_time);
+			PurpleConversation *convo = purple_conv_chat_get_conversation(chat);
+			gboolean quiet = GPOINTER_TO_INT(purple_signal_emit_return_1(
+				purple_conversations_get_handle(), "chat-buddy-leaving", convo, nick, quit_reason));
+			if (!quiet) {
+				char *msg = g_strdup_printf(_("%s left the room (%s)."), nick, quit_reason);
+				purple_conv_chat_write(chat, "", msg, PURPLE_MESSAGE_SYSTEM | PURPLE_MESSAGE_NO_LOG, msg_time);
+				g_free(msg);
+			}
+			purple_signal_emit(purple_conversations_get_handle(), "chat-buddy-left", convo, nick, quit_reason);
 			chats = chats->next;
 		}
-		g_free(msg);
+		g_free(quit_reason);
+		g_free(reason);
 		g_free(nick);
 		return;
 	}
