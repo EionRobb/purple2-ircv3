@@ -245,7 +245,7 @@ irc_ssl_apply_client_cert(PurpleSslConnection *gsc, const char *cert_path);
 char *
 irc_cert_get_fingerprint(const char *cert_path);
 gboolean
-irc_cert_get_fingerprints(const char *cert_path, char **sha256_out, char **sha512_out);
+irc_cert_get_fingerprints(const char *cert_path, char **sha1_out, char **sha256_out, char **sha512_out);
 gboolean
 irc_cert_generate(const char *out_path, const char *nick);
 

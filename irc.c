@@ -133,22 +133,23 @@ irc_action_cert_fingerprint(PurplePluginAction *action)
 		cert_path = g_build_filename(purple_user_dir(), "certs", "irc_cert.pem", NULL);
 	}
 
+	gchar *sha1 = NULL;
 	gchar *sha256 = NULL;
 	gchar *sha512 = NULL;
-	irc_cert_get_fingerprints(cert_path, &sha256, &sha512);
+	irc_cert_get_fingerprints(cert_path, &sha1, &sha256, &sha512);
 
-	if (!sha256) {
+	if (!sha256 && !sha1) {
 		const char *nick = purple_connection_get_display_name(gc);
 		if (irc_cert_generate(cert_path, nick)) {
 			generated = TRUE;
-			irc_cert_get_fingerprints(cert_path, &sha256, &sha512);
+			irc_cert_get_fingerprints(cert_path, &sha1, &sha256, &sha512);
 			purple_account_set_string(account, "tls_cert", "certs/irc_cert.pem");
 			if (!irc->tls_cert_path)
 				irc->tls_cert_path = g_strdup(cert_path);
 		}
 	}
 
-	if (sha256) {
+	if (sha256 || sha1) {
 		char *title = g_strdup(_("TLS Certificate Fingerprint"));
 		char *primary = g_strdup_printf(_("Certificate Fingerprints for %s"), purple_account_get_username(account));
 		char *body = g_strdup_printf(
@@ -158,19 +159,25 @@ irc_action_cert_fingerprint(PurplePluginAction *action)
 			  "<span style=\"font-family: monospace; font-weight: bold;\">/msg NickServ CERT ADD</span><br><br>"
 			  "<b>SHA-512 Fingerprint (Libera.Chat / Atheme):</b><br><span style=\"font-family: monospace; font-weight: bold; word-break: break-all;\">%s</span><br>"
 			  "<code>/msg NickServ CERT ADD %s</code><br><br>"
-			  "<b>SHA-256 Fingerprint (OFTC / Ergo / Anope):</b><br><span style=\"font-family: monospace; font-weight: bold; word-break: break-all;\">%s</span><br>"
+			  "<b>SHA-256 Fingerprint (Ergo / Anope):</b><br><span style=\"font-family: monospace; font-weight: bold; word-break: break-all;\">%s</span><br>"
+			  "<code>/msg NickServ CERT ADD %s</code><br><br>"
+			  "<b>SHA-1 Fingerprint (OFTC):</b><br><span style=\"font-family: monospace; font-weight: bold; word-break: break-all;\">%s</span><br>"
 			  "<code>/msg NickServ CERT ADD %s</code>"),
 			generated ? _("<i>A new client certificate was generated for this account.</i><br><br>") : "",
 			cert_path,
 			sha512 ? sha512 : "",
 			sha512 ? sha512 : "",
-			sha256, sha256);
+			sha256 ? sha256 : "",
+			sha256 ? sha256 : "",
+			sha1 ? sha1 : "",
+			sha1 ? sha1 : "");
 
 		purple_notify_formatted(gc, title, primary, NULL, body, NULL, NULL);
 
 		g_free(title);
 		g_free(primary);
 		g_free(body);
+		g_free(sha1);
 		g_free(sha256);
 		g_free(sha512);
 	} else {

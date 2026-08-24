@@ -374,10 +374,11 @@ irc_ssl_apply_client_cert(PurpleSslConnection *gsc, const char *cert_path)
 }
 
 gboolean
-irc_cert_get_fingerprints(const char *cert_path, char **sha256_out, char **sha512_out)
+irc_cert_get_fingerprints(const char *cert_path, char **sha1_out, char **sha256_out, char **sha512_out)
 {
 	gchar *contents = NULL;
 	gsize len = 0;
+	if (sha1_out) *sha1_out = NULL;
 	if (sha256_out) *sha256_out = NULL;
 	if (sha512_out) *sha512_out = NULL;
 
@@ -414,6 +415,9 @@ irc_cert_get_fingerprints(const char *cert_path, char **sha256_out, char **sha51
 		return FALSE;
 	}
 
+	if (sha1_out)
+		*sha1_out = g_compute_checksum_for_data(G_CHECKSUM_SHA1, der, der_len);
+
 	if (sha256_out)
 		*sha256_out = g_compute_checksum_for_data(G_CHECKSUM_SHA256, der, der_len);
 
@@ -428,7 +432,7 @@ char *
 irc_cert_get_fingerprint(const char *cert_path)
 {
 	char *sha256 = NULL;
-	irc_cert_get_fingerprints(cert_path, &sha256, NULL);
+	irc_cert_get_fingerprints(cert_path, NULL, &sha256, NULL);
 	return sha256;
 }
 

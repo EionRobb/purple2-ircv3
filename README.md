@@ -60,7 +60,10 @@ sudo make install
 
 ## TLS Client Certificate (CertFP / SASL EXTERNAL) Setup
 
-To generate a self-signed TLS client certificate and private key in PEM format for SASL `EXTERNAL` authentication (CertFP):
+> [!TIP]
+> **Account Action Menu**: From the Buddy List, **Accounts -> <Account> -> TLS Certificate Fingerprint** to view your active certificate fingerprint and ready-to-run NickServ registration command, or automatically generate a new certificate if one does not already exist.
+
+To manually generate a self-signed TLS client certificate and private key in PEM format for SASL `EXTERNAL` authentication (CertFP):
 
 ### 1. Generate the Certificate & Key
 ```bash
@@ -73,9 +76,13 @@ openssl req -x509 -new -newkey rsa:4096 -sha256 -days 1095 -nodes -out irc_cert.
   ```bash
   openssl x509 -in irc_cert.pem -outform DER | openssl dgst -sha512 -r | cut -d' ' -f1
   ```
-* **OFTC / Ergo / Anope networks (SHA-256)**:
+* **Ergo / Anope networks (SHA-256)**:
   ```bash
   openssl x509 -in irc_cert.pem -outform DER | openssl dgst -sha256 -r | cut -d' ' -f1
+  ```
+* **OFTC networks (SHA-1)**:
+  ```bash
+  openssl x509 -in irc_cert.pem -outform DER | openssl dgst -sha1 -r | cut -d' ' -f1
   ```
 
 ### 3. Register the Fingerprint with NickServ
@@ -83,7 +90,7 @@ openssl req -x509 -new -newkey rsa:4096 -sha256 -days 1095 -nodes -out irc_cert.
   ```text
   /msg NickServ CERT ADD
   ```
-  *(NickServ on Libera.Chat automatically detects the certificate fingerprint from your active TLS connection!)*
+  *(NickServ on most servers will automatically detect the certificate fingerprint from your active TLS connection!)*
 
 * **Option B**: Provide the fingerprint manually:
   ```text
@@ -98,8 +105,6 @@ openssl req -x509 -new -newkey rsa:4096 -sha256 -days 1095 -nodes -out irc_cert.
      * Check **Authenticate with SASL**
      * In **TLS Client Certificate (.pem)**, enter: `certs/irc_cert.pem` (or the absolute path)
 
-> [!TIP]
-> **Account Action Menu**: You can also right-click your IRC account in the Accounts window (or via **Accounts -> <Account> -> TLS Certificate Fingerprint**) to view your active certificate fingerprint and ready-to-run NickServ registration command, or automatically generate a new certificate if one does not exist.
 
 
 
