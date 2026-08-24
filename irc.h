@@ -81,6 +81,9 @@
 #define IRC_DEFAULT_AUTODETECT FALSE
 
 #define IRC_DEFAULT_QUIT "Leaving."
+#define IRC_DEFAULT_PART "Leaving."
+#define IRC_DEFAULT_CTCP_VERSION "Purple IRC"
+#define IRC_DEFAULT_SETUMODES "i"
 
 /* By default set the command send interval to 2 seconds and allow bursting of
  * 5 commands at once.  This means, if we haven't sent a command in 10 seconds

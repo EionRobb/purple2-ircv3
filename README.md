@@ -45,6 +45,15 @@ sudo make install
 * **Attention / Nudges**: ASCII `\007` (BEL) integration with Pidgin's native Nudge/Attention API to shake/flash windows and play sound alerts on incoming nudges, as well as sending nudges via `/nudge` or the UI button.
 * **URI Handling**: Native `irc://` and `ircs://` protocol handler support for opening IRC links directly in Pidgin.
 * **Extended Text Formatting & Colors**: Bidirectional formatting support (aka MIRC colours) including bold, italics (`\x1D`), underline, strikethrough (`\x1E`), monospace (`\x11`), reverse video (`\x16`), 24-bit RGB hex colors (`\x04`), and extended 16-98 mIRC color palettes.
+* **Account Ergonomics & Quality-of-Life**:
+  * **Auto-Join Channels**: Account option for a comma/space-separated list of channels to enter automatically upon sign-on.
+  * **Custom CTCP VERSION Reply**: Customizable `CTCP VERSION` response string for privacy and client spoofing.
+  * **Initial User Modes**: Automatically set (e.g. `+i`, `+R`) or unset user modes upon connecting.
+  * **Configurable Part & Quit Messages**: Customizable default messages for leaving channels or disconnecting.
+  * **Auto-Rejoin on Kick**: Option to automatically re-enter a channel after being kicked.
+* **Smart Notice Routing & Noise Filtering**:
+  * **ChanServ & Service Notice Routing**: Directs `[#channel]` entry notices and ChanServ access list notifications into the relevant channel's conversation window as system messages rather than opening disruptive query tabs.
+  * **Connection Cruft Suppression**: Filters out noisy server handshake notices (UnrealIRCd hostname/ident checks, `[freenode-info]`, CTCP stats bot probes, and echoed self-invite notices).
 * **Avatar & Buddy Icon Support**: Automatic fetching and rendering of user avatars and buddy icons via HTTP/HTTPS metadata.
 * **TLS Client Certificates & SASL EXTERNAL**: Supports client certificate authentication (CertFP) via a `.pem` file option (relative to the user's `.purple` folder or absolute path), with pre-connection format validation.
 * **Event Loop Integration**: Refactored timers and event handlers to run through libpurple's main event loop.

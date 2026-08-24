@@ -945,7 +945,10 @@ irc_parse_ctcp(struct irc_conn *irc, const char *from, const char *to, const cha
 			g_free(buf);
 		}
 	} else if (!strncmp(cur, "VERSION", 7) && !notice) {
-		buf = irc_format(irc, "vt:", "NOTICE", from, "\001VERSION Purple IRC\001");
+		const char *version_str = purple_account_get_string(irc->account, "ctcp_version", IRC_DEFAULT_CTCP_VERSION);
+		char *version_reply = g_strdup_printf("\001VERSION %s\001", (version_str && *version_str) ? version_str : IRC_DEFAULT_CTCP_VERSION);
+		buf = irc_format(irc, "vt:", "NOTICE", from, version_reply);
+		g_free(version_reply);
 		irc_send(irc, buf);
 		g_free(buf);
 	} else if (!strncmp(cur, "DCC SEND ", 9)) {

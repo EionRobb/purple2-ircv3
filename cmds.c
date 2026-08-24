@@ -431,12 +431,15 @@ int
 irc_cmd_part(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
 {
 	char *buf;
+	const char *partmsg;
 
 	if (!args)
 		return 0;
 
-	if (args[1])
-		buf = irc_format(irc, "vc:", "PART", args[0] ? args[0] : target, args[1]);
+	partmsg = (args[1] && *args[1]) ? args[1] : purple_account_get_string(irc->account, "partmsg", IRC_DEFAULT_PART);
+
+	if (partmsg && *partmsg)
+		buf = irc_format(irc, "vc:", "PART", args[0] ? args[0] : target, partmsg);
 	else
 		buf = irc_format(irc, "vc", "PART", args[0] ? args[0] : target);
 	irc_priority_send(irc, buf);
@@ -599,14 +602,11 @@ int
 irc_cmd_quit(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
 {
 	char *buf;
+	const char *quitmsg;
 
 	if (!irc->quitting) {
-		/*
-		 * Use purple_account_get_string(irc->account, "quitmsg", IRC_DEFAULT_QUIT)
-		 * and uncomment the appropriate account preference in irc.c if we
-		 * decide we want custom quit messages.
-		 */
-		buf = irc_format(irc, "v:", "QUIT", (args && args[0]) ? args[0] : IRC_DEFAULT_QUIT);
+		quitmsg = (args && args[0] && *args[0]) ? args[0] : purple_account_get_string(irc->account, "quitmsg", IRC_DEFAULT_QUIT);
+		buf = irc_format(irc, "v:", "QUIT", (quitmsg && *quitmsg) ? quitmsg : IRC_DEFAULT_QUIT);
 		irc_priority_send(irc, buf);
 		g_free(buf);
 

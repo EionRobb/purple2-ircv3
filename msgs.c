@@ -104,6 +104,9 @@ irc_connected(struct irc_conn *irc, const char *nick)
 	PurpleStatus *status;
 	GSList *buddies;
 	PurpleAccount *account;
+	const char *setumodes;
+	const char *unsetumodes;
+	const char *autojoin;
 
 	if ((gc = purple_account_get_connection(irc->account)) == NULL || PURPLE_CONNECTION_IS_CONNECTED(gc))
 		return;
@@ -111,6 +114,47 @@ irc_connected(struct irc_conn *irc, const char *nick)
 	purple_connection_set_display_name(gc, nick);
 	purple_connection_set_state(gc, PURPLE_CONNECTED);
 	account = purple_connection_get_account(gc);
+
+	/* Set or unset initial user modes on connect */
+	setumodes = purple_account_get_string(account, "setumodes", IRC_DEFAULT_SETUMODES);
+	if (setumodes && *setumodes) {
+		char *modearg = g_strdup_printf("+%s", setumodes);
+		char *buf = irc_format(irc, "vnv", "MODE", nick, modearg);
+		irc_send(irc, buf);
+		g_free(buf);
+		g_free(modearg);
+	}
+
+	unsetumodes = purple_account_get_string(account, "unsetumodes", "");
+	if (unsetumodes && *unsetumodes) {
+		char *modearg = g_strdup_printf("-%s", unsetumodes);
+		char *buf = irc_format(irc, "vnv", "MODE", nick, modearg);
+		irc_send(irc, buf);
+		g_free(buf);
+		g_free(modearg);
+	}
+
+	/* Autojoin channels configured on account */
+	autojoin = purple_account_get_string(account, "autojoin", "");
+	if (autojoin && *autojoin) {
+		gchar **channels = g_strsplit_set(autojoin, ", ", -1);
+		GString *join_str = g_string_new("");
+		int i;
+		for (i = 0; channels[i] != NULL; i++) {
+			if (*channels[i]) {
+				if (join_str->len > 0)
+					g_string_append_c(join_str, ',');
+				g_string_append(join_str, channels[i]);
+			}
+		}
+		if (join_str->len > 0) {
+			char *buf = irc_format(irc, "vc", "JOIN", join_str->str);
+			irc_send(irc, buf);
+			g_free(buf);
+		}
+		g_string_free(join_str, TRUE);
+		g_strfreev(channels);
+	}
 
 	/* If we're away then set our away message */
 	status = purple_account_get_active_status(irc->account);
@@ -1654,6 +1698,11 @@ irc_msg_kick(struct irc_conn *irc, const char *name, const char *from, char **ar
 		purple_conv_chat_write(PURPLE_CONV_CHAT(convo), args[0], buf, PURPLE_MESSAGE_SYSTEM, time(NULL));
 		g_free(buf);
 		serv_got_chat_left(gc, purple_conv_chat_get_id(PURPLE_CONV_CHAT(convo)));
+		if (purple_account_get_bool(irc->account, "autorejoin", FALSE)) {
+			char *joinbuf = irc_format(irc, "vc", "JOIN", args[0]);
+			irc_send(irc, joinbuf);
+			g_free(joinbuf);
+		}
 	} else {
 		buf = g_strdup_printf(_("Kicked by %s (%s)"), nick, args[2]);
 		purple_conv_chat_remove_user(PURPLE_CONV_CHAT(convo), args[1], buf);
@@ -2097,6 +2146,91 @@ irc_msg_handle_privmsg(struct irc_conn *irc, const char *name, const char *from,
 
 	if (strchr(rawmsg, '\007') != NULL) {
 		purple_prpl_got_attention(gc, nick, 0);
+	}
+
+	if (notice && !irc_ischannel(to)) {
+		/* Filter out server connection cruft and boilerplate notices */
+		if (g_str_has_prefix(rawmsg, "*** Found your hostname") ||
+			g_str_has_prefix(rawmsg, "*** Looking up your hostname") ||
+			g_str_has_prefix(rawmsg, "*** Checking ident") ||
+			g_str_has_prefix(rawmsg, "*** No ident response") ||
+			g_str_has_prefix(rawmsg, "*** If you are having problems connecting due to ping timeouts") ||
+			g_str_has_prefix(rawmsg, "*** Spoofing your IP") ||
+			g_str_has_prefix(rawmsg, "[freenode-info]") ||
+			(!purple_utf8_strcasecmp(nick, "frigg") && g_str_has_prefix(rawmsg, "Received CTCP")) ||
+			(!purple_utf8_strcasecmp(nick, "MemoServ") && g_str_has_prefix(rawmsg, "You have no new memos")) ||
+			(!purple_utf8_strcasecmp(nick, "ChanServ") && g_str_has_prefix(rawmsg, "You do not have channel operator access to")) ||
+			(!purple_utf8_strcasecmp(nick, "Q") && (g_str_has_prefix(rawmsg, "Remember: NO-ONE from QuakeNet") || g_str_has_prefix(rawmsg, "Lastly, When you do recover your password")))) {
+			g_free(msg);
+			g_free(nick);
+			return;
+		}
+
+		/* Suppress redundant self-invite echo notices */
+		gchar *self_invite = g_strdup_printf("%s invited ", purple_connection_get_display_name(gc));
+		if (g_str_has_prefix(rawmsg, self_invite)) {
+			g_free(self_invite);
+			g_free(msg);
+			g_free(nick);
+			return;
+		}
+		g_free(self_invite);
+
+		/* Route channel entry notices like "[#channel] Welcome..." directly to the chat conversation */
+		if (rawmsg[0] == '[' && rawmsg[1] == '#') {
+			const char *chan_end = strchr(rawmsg + 1, ']');
+			if (chan_end) {
+				char *channame = g_strndup(rawmsg + 1, chan_end - (rawmsg + 1));
+				convo = purple_find_conversation_with_account(PURPLE_CONV_TYPE_CHAT, channame, irc->account);
+				if (convo) {
+					const char *rest = chan_end + 1;
+					while (*rest == ' ') rest++;
+					char *escaped = irc_mirc2html(rest);
+					purple_conv_chat_write(PURPLE_CONV_CHAT(convo), nick, escaped, PURPLE_MESSAGE_SYSTEM, now);
+					g_free(escaped);
+					g_free(channame);
+					g_free(msg);
+					g_free(nick);
+					return;
+				}
+				g_free(channame);
+			}
+		}
+
+		/* Route ChanServ access list notifications into the relevant chat conversation */
+		if (!purple_utf8_strcasecmp(nick, "ChanServ")) {
+			const char *prefix_add = "You have been added to the access list for ";
+			const char *prefix_del1 = "You have been deleted from the access list for ";
+			const char *prefix_del2 = "You have been removed from the access list for ";
+			const char *chan_start = NULL;
+
+			if (g_str_has_prefix(rawmsg, prefix_add)) {
+				chan_start = rawmsg + strlen(prefix_add);
+			} else if (g_str_has_prefix(rawmsg, prefix_del1)) {
+				chan_start = rawmsg + strlen(prefix_del1);
+			} else if (g_str_has_prefix(rawmsg, prefix_del2)) {
+				chan_start = rawmsg + strlen(prefix_del2);
+			}
+
+			if (chan_start) {
+				while (*chan_start == '[' || *chan_start == ' ') chan_start++;
+				char *channame = g_strdup(chan_start);
+				char *space = strpbrk(channame, " ]\r\n");
+				if (space) *space = '\0';
+
+				convo = purple_find_conversation_with_account(PURPLE_CONV_TYPE_CHAT, channame, irc->account);
+				if (convo) {
+					char *sysmsg = irc_mirc2html(rawmsg);
+					purple_conv_chat_write(PURPLE_CONV_CHAT(convo), nick, sysmsg, PURPLE_MESSAGE_SYSTEM, now);
+					g_free(sysmsg);
+					g_free(channame);
+					g_free(msg);
+					g_free(nick);
+					return;
+				}
+				g_free(channame);
+			}
+		}
 	}
 
 	if (irc_ischannel(to)) {
