@@ -147,6 +147,8 @@ struct irc_conn {
 		char *secure;
 		char *certfp;
 		char *modes;
+		char *admin;
+		char *actually;
 		GString *channels;
 		int ircop;
 		int identified;

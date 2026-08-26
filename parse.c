@@ -76,6 +76,7 @@ static struct _irc_msg {
 
 	void (*cb)(struct irc_conn *irc, const char *name, const char *from, char **args);
 } _irc_msgs[] = {
+	{ "004", "*", 0, irc_msg_ignore },		   /* RPL_MYINFO			*/
 	{ "005", "n*", 2, irc_msg_features },	   /* Feature list			*/
 	{ "211", "*", 0, irc_msg_info_reply },	   /* RPL_STATSLINKINFO		*/
 	{ "212", "*", 0, irc_msg_info_reply },	   /* RPL_STATSCOMMANDS		*/
@@ -92,6 +93,7 @@ static struct _irc_msg {
 	{ "301", "nn:", 3, irc_msg_away },		   /* User is away			*/
 	{ "303", "n:", 2, irc_msg_ison },		   /* ISON reply			*/
 	{ "307", "nn:", 2, irc_msg_whois },		   /* RPL_WHOISREGNICK		*/
+	{ "309", "nn:", 2, irc_msg_whois },		   /* RPL_WHOISADMIN		*/
 	{ "311", "nnvvv:", 6, irc_msg_whois },	   /* Whois user			*/
 	{ "312", "nnv:", 4, irc_msg_whois },	   /* Whois server			*/
 	{ "313", "nn:", 2, irc_msg_whois },		   /* Whois ircop			*/
@@ -110,6 +112,7 @@ static struct _irc_msg {
 	{ "332", "nc:", 3, irc_msg_topic },		   /* Channel topic		*/
 	{ "333", "ncvv", 4, irc_msg_topicinfo },   /* Topic setter stuff		*/
 	{ "335", "nn:", 2, irc_msg_whoisbot },	   /* RPL_WHOISBOT (bot-mode)	*/
+	{ "338", "nn:", 2, irc_msg_whois },		   /* RPL_WHOISACTUALLY		*/
 	{ "341", "nc:", 3, irc_msg_inviting },	   /* RPL_INVITING			*/
 	{ "352", "ncvvvnv:", 8, irc_msg_who },	   /* Channel WHO			*/
 	{ "354", "nvvvvvvv:", 9, irc_msg_whox },   /* Extended WHO (WHOX) reply	*/
@@ -951,6 +954,7 @@ irc_parse_ctcp(struct irc_conn *irc, const char *from, const char *to, const cha
 		g_free(version_reply);
 		irc_send(irc, buf);
 		g_free(buf);
+		return NULL;
 	} else if (!strncmp(cur, "DCC SEND ", 9)) {
 		irc_dccsend_recv(irc, from, msg + 10);
 		return NULL;

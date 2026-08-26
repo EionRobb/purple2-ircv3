@@ -651,6 +651,9 @@ irc_msg_whois(struct irc_conn *irc, const char *name, const char *from, char **a
 		irc->whois.away = g_strdup(args[2]);
 	} else if (purple_strequal(name, "307")) {
 		irc->whois.identified = 1;
+	} else if (purple_strequal(name, "309")) {
+		g_free(irc->whois.admin);
+		irc->whois.admin = g_strdup(args[2]);
 	} else if (purple_strequal(name, "311") || purple_strequal(name, "314")) {
 		irc->whois.ident = g_strdup(args[2]);
 		irc->whois.host = g_strdup(args[3]);
@@ -676,6 +679,9 @@ irc_msg_whois(struct irc_conn *irc, const char *name, const char *from, char **a
 		irc->whois.login = g_strdup(args[2]);
 	} else if (purple_strequal(name, "335")) {
 		irc->whois.bot = 1;
+	} else if (purple_strequal(name, "338")) {
+		g_free(irc->whois.actually);
+		irc->whois.actually = g_strdup(args[2]);
 	} else if (purple_strequal(name, "378")) {
 		irc->whois.connected_from = g_strdup(args[2]);
 	} else if (purple_strequal(name, "379")) {
@@ -736,6 +742,14 @@ irc_msg_endwhois(struct irc_conn *irc, const char *name, const char *from, char 
 	if (irc->whois.connected_from) {
 		purple_notify_user_info_add_pair_plaintext(user_info, _("Connected from"), irc->whois.connected_from);
 		g_free(irc->whois.connected_from);
+	}
+	if (irc->whois.actually) {
+		purple_notify_user_info_add_pair_plaintext(user_info, _("Actually using"), irc->whois.actually);
+		g_free(irc->whois.actually);
+	}
+	if (irc->whois.admin) {
+		purple_notify_user_info_add_pair_plaintext(user_info, _("Admin info"), irc->whois.admin);
+		g_free(irc->whois.admin);
 	}
 	if (irc->whois.secure) {
 		purple_notify_user_info_add_pair_plaintext(user_info, _("Secure connection"), irc->whois.secure);
