@@ -3148,7 +3148,6 @@ irc_msg_tagmsg(struct irc_conn *irc, const char *name, const char *from, char **
 			else if (strcmp(kv[1], "paused") == 0)
 				state = PURPLE_TYPED;
 
-			nick = irc_mask_nick(from);
 			if (args && args[0] && args[0][0] == '#') {
 				// Group chat
 				PurpleConversation *conv = purple_find_conversation_with_account(PURPLE_CONV_TYPE_ANY, args[0], irc->account);
@@ -3168,10 +3167,10 @@ irc_msg_tagmsg(struct irc_conn *irc, const char *name, const char *from, char **
 				// Private chat
 				serv_got_typing(gc, nick, state == PURPLE_TYPED ? 30 : 6, state);
 			}
-			g_free(nick);
 		}
 		g_strfreev(kv);
 	}
+	g_free(nick);
 	g_strfreev(tags_arr);
 }
 
@@ -3288,7 +3287,7 @@ irc_msg_batch(struct irc_conn *irc, const char *name, const char *from, char **a
 			if (!batch->self_sent && (g_strcmp0(batch->type, "draft/multiline") == 0 || g_strcmp0(batch->type, "multiline") == 0)) {
 				PurpleConnection *gc = purple_account_get_connection(irc->account);
 				if (gc && batch->content && batch->target) {
-					char *nick = batch->from ? batch->from : g_strdup("");
+					const char *nick = batch->from ? batch->from : "";
 					time_t now = time(NULL);
 					char *msg = irc_mirc2html(batch->content->str);
 					if (irc_ischannel(batch->target)) {
@@ -3313,7 +3312,6 @@ irc_msg_batch(struct irc_conn *irc, const char *name, const char *from, char **a
 						}
 					}
 					g_free(msg);
-					if (batch->from) g_free(nick);
 				}
 			}
 			g_hash_table_remove(irc->active_batches, ref);

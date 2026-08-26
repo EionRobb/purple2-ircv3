@@ -1116,6 +1116,7 @@ read_input(struct irc_conn *irc, int len)
 		int step = (*end == '\r' ? 2 : 1);
 		*end = '\0';
 		irc_parse_msg(irc, cur);
+		if (!PURPLE_CONNECTION_IS_VALID(irc->account->gc)) return;
 		cur = end + step;
 	}
 	if (cur != irc->inbuf + irc->inbufused) { /* leftover */
@@ -1155,6 +1156,7 @@ irc_input_cb_ssl(gpointer data, PurpleSslConnection *gsc, PurpleInputCondition c
 		len = purple_ssl_read(gsc, irc->inbuf + irc->inbufused, irc->inbuflen - irc->inbufused - 1);
 		if (len > 0) {
 			read_input(irc, len);
+			if (!PURPLE_CONNECTION_IS_VALID(gc)) return;
 		}
 	} while (len > 0);
 
