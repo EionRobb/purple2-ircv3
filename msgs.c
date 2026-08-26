@@ -2090,7 +2090,7 @@ irc_msg_handle_privmsg(struct irc_conn *irc, const char *name, const char *from,
 
 	time_t now = time(NULL);
 	gboolean self_sent = FALSE;
-	const gchar *time_tag = NULL;
+	char iso_buf[64] = "";
 	if (irc->current_tags) {
 		// look for @label in current_tags string, check irc->sent_messages to see if we sent it, and skip if we did
 		gchar **tags = g_strsplit(irc->current_tags, ";", -1);
@@ -2103,8 +2103,9 @@ irc_msg_handle_privmsg(struct irc_conn *irc, const char *name, const char *from,
 					}
 				}
 			} else if (g_str_has_prefix(tags[i], "time=")) {
-				time_tag = tags[i] + 5; // Skip "time="
-				now = purple_str_to_time(time_tag, TRUE, NULL, NULL, NULL);
+				const gchar *time_val = tags[i] + 5; // Skip "time="
+				g_strlcpy(iso_buf, time_val, sizeof(iso_buf));
+				now = purple_str_to_time(time_val, TRUE, NULL, NULL, NULL);
 			} else if (g_str_has_prefix(tags[i], "account=")) {
 				const gchar *acc_str = tags[i] + 8; // Skip "account="
 				if (acc_str && *acc_str) {
@@ -2172,10 +2173,7 @@ irc_msg_handle_privmsg(struct irc_conn *irc, const char *name, const char *from,
 		g_strfreev(tags);
 	}
 
-	char iso_buf[64];
-	if (time_tag) {
-		g_strlcpy(iso_buf, time_tag, sizeof(iso_buf));
-	} else {
+	if (!iso_buf[0]) {
 		struct tm *tm = gmtime(&now);
 		strftime(iso_buf, sizeof(iso_buf), "%Y-%m-%dT%H:%M:%SZ", tm);
 	}
