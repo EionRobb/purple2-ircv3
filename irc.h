@@ -114,6 +114,8 @@ struct irc_batch {
 	gboolean last_concat;
 	gboolean notice;
 	gboolean self_sent;
+	gboolean chathistory;
+	time_t time;
 };
 
 struct irc_conn {
