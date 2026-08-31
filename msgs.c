@@ -181,6 +181,21 @@ irc_connected(struct irc_conn *irc, const char *nick)
 		char *buf = irc_format(irc, "v", "METADATA * SUB avatar");
 		irc_send(irc, buf);
 		g_free(buf);
+
+		const char *avatar_url = purple_account_get_string(irc->account, "avatar_url", NULL);
+		if (avatar_url && *avatar_url) {
+			buf = irc_format(irc, "vvvv:", "METADATA", "*", "SET", "avatar", avatar_url);
+			irc_send(irc, buf);
+			g_free(buf);
+		}
+
+		for (buddies = purple_find_buddies(account, NULL); buddies;
+			 buddies = g_slist_delete_link(buddies, buddies)) {
+			PurpleBuddy *b = buddies->data;
+			buf = irc_format(irc, "vvvv", "METADATA", purple_buddy_get_name(b), "GET", "avatar");
+			irc_send(irc, buf);
+			g_free(buf);
+		}
 	}
 }
 
@@ -1510,6 +1525,11 @@ irc_buddy_status(char *name, struct irc_buddy *ib, struct irc_conn *irc)
 	} else if (!ib->online && ib->new_online_status) {
 		purple_prpl_got_user_status(irc->account, name, "available", NULL);
 		ib->online = TRUE;
+		if (irc->cap_metadata_2) {
+			char *buf = irc_format(irc, "vvvv", "METADATA", name, "GET", "avatar");
+			irc_send(irc, buf);
+			g_free(buf);
+		}
 	}
 }
 
@@ -2886,8 +2906,11 @@ irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **arg
 				g_string_append(req, "draft/chathistory ");
 			} else if (strcmp(cap_array[i], "draft/event-playback") == 0 || strcmp(cap_array[i], "event-playback") == 0) {
 				g_string_append(req, "draft/event-playback ");
-			} else if (strcmp(cap_array[i], "draft/metadata-2") == 0) {
-				g_string_append(req, "draft/metadata-2 ");
+			} else if (strcmp(cap_array[i], "draft/metadata-2") == 0 ||
+					   strcmp(cap_array[i], "metadata-2") == 0 ||
+					   strcmp(cap_array[i], "draft/metadata") == 0 ||
+					   strcmp(cap_array[i], "metadata") == 0) {
+				g_string_append_printf(req, "%s ", cap_array[i]);
 			} else if (strcmp(cap_array[i], "sts") == 0 || strncmp(cap_array[i], "sts=", 4) == 0) {
 				const char *val = (strncmp(cap_array[i], "sts=", 4) == 0) ? cap_array[i] + 4 : NULL;
 				irc_parse_sts(irc, val);
@@ -2939,7 +2962,10 @@ irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **arg
 				irc->cap_chathistory = FALSE;
 			} else if (strcmp(cap_array[i], "draft/event-playback") == 0 || strcmp(cap_array[i], "event-playback") == 0) {
 				irc->cap_event_playback = FALSE;
-			} else if (strcmp(cap_array[i], "draft/metadata-2") == 0) {
+			} else if (strcmp(cap_array[i], "draft/metadata-2") == 0 ||
+					   strcmp(cap_array[i], "metadata-2") == 0 ||
+					   strcmp(cap_array[i], "draft/metadata") == 0 ||
+					   strcmp(cap_array[i], "metadata") == 0) {
 				irc->cap_metadata_2 = FALSE;
 			}
 		}
@@ -2972,7 +2998,10 @@ irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **arg
 				irc->cap_chathistory = TRUE;
 			} else if (strcmp(cap_array[i], "draft/event-playback") == 0 || strcmp(cap_array[i], "event-playback") == 0) {
 				irc->cap_event_playback = TRUE;
-			} else if (strcmp(cap_array[i], "draft/metadata-2") == 0) {
+			} else if (strcmp(cap_array[i], "draft/metadata-2") == 0 ||
+					   strcmp(cap_array[i], "metadata-2") == 0 ||
+					   strcmp(cap_array[i], "draft/metadata") == 0 ||
+					   strcmp(cap_array[i], "metadata") == 0) {
 				irc->cap_metadata_2 = TRUE;
 			} else if (strcmp(cap_array[i], "sts") == 0 || strncmp(cap_array[i], "sts=", 4) == 0) {
 				const char *val = (strncmp(cap_array[i], "sts=", 4) == 0) ? cap_array[i] + 4 : NULL;
@@ -3010,7 +3039,10 @@ irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **arg
 				irc->cap_chathistory = TRUE;
 			} else if (strcmp(cap_array[i], "draft/event-playback") == 0 || strcmp(cap_array[i], "event-playback") == 0) {
 				irc->cap_event_playback = TRUE;
-			} else if (strcmp(cap_array[i], "draft/metadata-2") == 0) {
+			} else if (strcmp(cap_array[i], "draft/metadata-2") == 0 ||
+					   strcmp(cap_array[i], "metadata-2") == 0 ||
+					   strcmp(cap_array[i], "draft/metadata") == 0 ||
+					   strcmp(cap_array[i], "metadata") == 0) {
 				irc->cap_metadata_2 = TRUE;
 			}
 #ifdef HAVE_CYRUS_SASL
@@ -3210,6 +3242,7 @@ void
 irc_msg_metadata(struct irc_conn *irc, const char *name, const char *from, char **args)
 {
 	const char *target, *key, *value;
+	PurpleConnection *gc = purple_account_get_connection(irc->account);
 
 	if (g_strcmp0(name, "761") == 0) {
 		/* 761 <client> <target> <key> <visibility> :<value> */
@@ -3224,8 +3257,9 @@ irc_msg_metadata(struct irc_conn *irc, const char *name, const char *from, char 
 	}
 
 	if (g_strcmp0(key, "avatar") == 0) {
+		const char *user_target = (target && g_strcmp0(target, "*") == 0 && gc) ? purple_connection_get_display_name(gc) : target;
 		if (value && *value) {
-			PurpleBuddy *buddy = purple_find_buddy(irc->account, target);
+			PurpleBuddy *buddy = purple_find_buddy(irc->account, user_target);
 			const char *url_to_fetch = value;
 
 			const char *existing_url = purple_buddy_icons_get_checksum_for_user(buddy);
@@ -3234,13 +3268,13 @@ irc_msg_metadata(struct irc_conn *irc, const char *name, const char *from, char 
 
 				req = g_new0(struct irc_avatar_fetch, 1);
 				req->irc = irc;
-				req->nick = g_strdup(target);
+				req->nick = g_strdup(user_target);
 				req->url = g_strdup(url_to_fetch);
 				purple_util_fetch_url_request_len_with_account(irc->account, url_to_fetch, TRUE, purple_core_get_ui(), TRUE, NULL, FALSE, 10 * 1024 * 1024, irc_avatar_fetch_cb, req);
 			}
 		} else {
 			/* Avatar cleared */
-			purple_buddy_icons_set_for_user(irc->account, target, NULL, 0, NULL);
+			purple_buddy_icons_set_for_user(irc->account, user_target, NULL, 0, NULL);
 		}
 	}
 }
@@ -3371,6 +3405,12 @@ irc_msg_mononline(struct irc_conn *irc, const char *name, const char *from, char
 		struct irc_buddy *ib = g_hash_table_lookup(irc->buddies, nick);
 		if (ib) {
 			ib->online = TRUE;
+		}
+
+		if (irc->cap_metadata_2) {
+			char *buf = irc_format(irc, "vvvv", "METADATA", nick, "GET", "avatar");
+			irc_send(irc, buf);
+			g_free(buf);
 		}
 
 		if (userhost && *userhost) {

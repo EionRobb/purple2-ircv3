@@ -1208,3 +1208,46 @@ irc_cmd_chathistory(struct irc_conn *irc, const char *cmd, const char *target, c
 	return 0;
 }
 
+int
+irc_cmd_avatar(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
+{
+	char *buf;
+	PurpleConversation *convo;
+
+	if (args && args[0] && *args[0]) {
+		purple_account_set_string(irc->account, "avatar_url", args[0]);
+		if (irc->cap_metadata_2) {
+			buf = irc_format(irc, "vvvv:", "METADATA", "*", "SET", "avatar", args[0]);
+			irc_send(irc, buf);
+			g_free(buf);
+		}
+		convo = purple_find_conversation_with_account(PURPLE_CONV_TYPE_ANY, target, irc->account);
+		buf = g_strdup_printf(_("Avatar URL set to: %s"), args[0]);
+		if (convo) {
+			purple_conversation_write(convo, "", buf, PURPLE_MESSAGE_SYSTEM | PURPLE_MESSAGE_NO_LOG, time(NULL));
+		} else {
+			PurpleConnection *gc = purple_account_get_connection(irc->account);
+			if (gc)
+				purple_notify_info(gc, _("Avatar URL"), _("Avatar URL Updated"), buf);
+		}
+		g_free(buf);
+	} else {
+		purple_account_set_string(irc->account, "avatar_url", "");
+		if (irc->cap_metadata_2) {
+			buf = irc_format(irc, "vvvv", "METADATA", "*", "SET", "avatar");
+			irc_send(irc, buf);
+			g_free(buf);
+		}
+		convo = purple_find_conversation_with_account(PURPLE_CONV_TYPE_ANY, target, irc->account);
+		if (convo) {
+			purple_conversation_write(convo, "", _("Avatar URL cleared."), PURPLE_MESSAGE_SYSTEM | PURPLE_MESSAGE_NO_LOG, time(NULL));
+		} else {
+			PurpleConnection *gc = purple_account_get_connection(irc->account);
+			if (gc)
+				purple_notify_info(gc, _("Avatar URL"), _("Avatar URL Cleared"), _("Avatar URL cleared."));
+		}
+	}
+
+	return 0;
+}
+

@@ -1016,6 +1016,11 @@ irc_get_info(PurpleConnection *gc, const char *who)
 	args[0] = who;
 	args[1] = NULL;
 	irc_cmd_whois(irc, "whois", NULL, args);
+	if (irc->cap_metadata_2 && who && *who) {
+		char *buf = irc_format(irc, "vvvv", "METADATA", who, "GET", "avatar");
+		irc_send(irc, buf);
+		g_free(buf);
+	}
 }
 
 static void
@@ -1074,6 +1079,11 @@ irc_add_buddy(PurpleConnection *gc, PurpleBuddy *buddy, PurpleGroup *group)
 		} else {
 			irc_ison_one(irc, ib);
 		}
+	}
+	if (irc->cap_metadata_2) {
+		char *buf = irc_format(irc, "vvvv", "METADATA", bname, "GET", "avatar");
+		irc_send(irc, buf);
+		g_free(buf);
 	}
 }
 
@@ -1650,7 +1660,15 @@ _init_plugin(PurplePlugin *plugin)
 {
 	PurplePluginProtocolInfoExt *prpl_info_ext = g_new0(PurplePluginProtocolInfoExt, 1);
 	PurplePluginProtocolInfo *prpl_info = (PurplePluginProtocolInfo *) prpl_info_ext;
-	PurpleBuddyIconSpec icon_spec = NO_BUDDY_ICONS;
+	PurpleBuddyIconSpec icon_spec = {
+		"png,gif,jpeg,jpg",              /* format */
+		1,                               /* min_width */
+		1,                               /* min_height */
+		512,                             /* max_width */
+		512,                             /* max_height */
+		10 * 1024 * 1024,                /* max_filesize */
+		PURPLE_ICON_SCALE_DISPLAY        /* scale_rules */
+	};
 	PurpleAccountUserSplit *split;
 	PurpleAccountOption *option;
 
@@ -1725,6 +1743,9 @@ _init_plugin(PurplePlugin *plugin)
 	prpl_info->protocol_options = g_list_append(prpl_info->protocol_options, option);
 
 	option = purple_account_option_string_new(_("Unset user modes on connect"), "unsetumodes", "");
+	prpl_info->protocol_options = g_list_append(prpl_info->protocol_options, option);
+
+	option = purple_account_option_string_new(_("Avatar URL"), "avatar_url", "");
 	prpl_info->protocol_options = g_list_append(prpl_info->protocol_options, option);
 
 	option = purple_account_option_bool_new(_("Auto-rejoin on kick"), "autorejoin", FALSE);

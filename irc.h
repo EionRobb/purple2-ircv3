@@ -483,6 +483,8 @@ irc_cmd_admin(struct irc_conn *irc, const char *cmd, const char *target, const c
 int
 irc_cmd_info(struct irc_conn *irc, const char *cmd, const char *target, const char **args);
 int
+irc_cmd_avatar(struct irc_conn *irc, const char *cmd, const char *target, const char **args);
+int
 irc_cmd_stats(struct irc_conn *irc, const char *cmd, const char *target, const char **args);
 int
 irc_cmd_lusers(struct irc_conn *irc, const char *cmd, const char *target, const char **args);

@@ -169,7 +169,7 @@ static struct _irc_msg {
 	{ "732", "n:", 2, irc_msg_monlist },	   /* RPL_MONLIST (IRCv3)	*/
 	{ "733", "n:", 1, irc_msg_ignore },	   /* RPL_ENDOFMONLIST (IRCv3)	*/
 	{ "734", "nvv:", 3, irc_msg_monfull },	   /* ERR_MONLISTFULL (IRCv3)	*/
-	{ "761", "nvvv:", 5, irc_msg_metadata },   /* RPL_KEYVALUE metadata     */
+	{ "761", "nvvv:", 4, irc_msg_metadata },   /* RPL_KEYVALUE metadata     */
 #ifdef HAVE_CYRUS_SASL
 	{ "903", "*", 0, irc_msg_authok },				  /* SASL auth successful		*/
 	{ "904", "*", 0, irc_msg_authtryagain },		  /* SASL auth failed, can recover*/
@@ -187,7 +187,7 @@ static struct _irc_msg {
 	{ "invite", "n:", 2, irc_msg_invite },		 /* Invited			*/
 	{ "join", ":", 1, irc_msg_join },			 /* Joined a channel		*/
 	{ "kick", "cn:", 3, irc_msg_kick },			 /* KICK				*/
-	{ "metadata", "tvv:", 4, irc_msg_metadata }, /* IRCv3 metadata            */
+	{ "metadata", "tvv:", 3, irc_msg_metadata }, /* IRCv3 metadata            */
 	{ "mode", "tv:", 2, irc_msg_mode },			 /* MODE for channel		*/
 	{ "nick", ":", 1, irc_msg_nick },			 /* Nick change			*/
 	{ "notice", "t:", 2, irc_msg_notice },		 /* NOTICE recv			*/
@@ -211,6 +211,7 @@ static struct _irc_user_cmd {
 	{ "action", ":", irc_cmd_ctcp_action, N_("action &lt;action to perform&gt;:  Perform an action.") },
 	{ "admin", ":", irc_cmd_admin, N_("admin [server]:  Display administrative information about the server.") },
 	{ "authserv", ":", irc_cmd_service, N_("authserv:  Send a command to authserv") },
+	{ "avatar", ":", irc_cmd_avatar, N_("avatar [url]:  Set or clear your avatar URL.") },
 	{ "away", ":", irc_cmd_away, N_("away [message]:  Set an away message, or use no message to return from being away.") },
 	{ "ban", ":", irc_cmd_ban, N_("ban [nick|mask]:  Ban a user or mask from the channel, or list current bans.") },
 	{ "botserv", ":", irc_cmd_service, N_("botserv:  Send a command to botserv") },
