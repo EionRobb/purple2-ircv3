@@ -332,7 +332,8 @@ irc_msg_away(struct irc_conn *irc, const char *name, const char *from, char **ar
 
 	gc = purple_account_get_connection(irc->account);
 	if (gc) {
-		msg = g_markup_escape_text(args[2], -1);
+		const char *away_text = (args[2] && strcmp(args[2], "*") == 0) ? _("Away") : args[2];
+		msg = g_markup_escape_text(away_text, -1);
 		serv_got_im(gc, args[1], msg, PURPLE_MESSAGE_AUTO_RESP, time(NULL));
 		g_free(msg);
 	}
@@ -354,8 +355,9 @@ irc_msg_away_notify(struct irc_conn *irc, const char *name, const char *from, ch
 		return;
 
 	if (args[0] != NULL) {
-		if (*args[0] != '\0') {
-			purple_prpl_got_user_status(irc->account, nick, "away", "message", args[0], NULL);
+		const char *away_msg = (strcmp(args[0], "*") == 0) ? NULL : args[0];
+		if (away_msg && *away_msg != '\0') {
+			purple_prpl_got_user_status(irc->account, nick, "away", "message", away_msg, NULL);
 		} else {
 			purple_prpl_got_user_status(irc->account, nick, "away", NULL);
 		}
@@ -663,7 +665,7 @@ irc_msg_whois(struct irc_conn *irc, const char *name, const char *from, char **a
 	}
 
 	if (purple_strequal(name, "301")) {
-		irc->whois.away = g_strdup(args[2]);
+		irc->whois.away = g_strdup((args[2] && strcmp(args[2], "*") == 0) ? _("Away") : args[2]);
 	} else if (purple_strequal(name, "307")) {
 		irc->whois.identified = 1;
 	} else if (purple_strequal(name, "309")) {
@@ -2983,6 +2985,8 @@ irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **arg
 				g_string_append(req, "draft/chathistory ");
 			} else if (strcmp(cap_array[i], "draft/event-playback") == 0 || strcmp(cap_array[i], "event-playback") == 0) {
 				g_string_append(req, "draft/event-playback ");
+			} else if (strcmp(cap_array[i], "draft/pre-away") == 0 || strcmp(cap_array[i], "pre-away") == 0) {
+				g_string_append_printf(req, "%s ", cap_array[i]);
 			} else if (strcmp(cap_array[i], "draft/metadata-2") == 0 ||
 					   strcmp(cap_array[i], "metadata-2") == 0 ||
 					   strcmp(cap_array[i], "draft/metadata") == 0 ||
@@ -3049,6 +3053,8 @@ irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **arg
 				irc->cap_chathistory = FALSE;
 			} else if (strcmp(cap_array[i], "draft/event-playback") == 0 || strcmp(cap_array[i], "event-playback") == 0) {
 				irc->cap_event_playback = FALSE;
+			} else if (strcmp(cap_array[i], "draft/pre-away") == 0 || strcmp(cap_array[i], "pre-away") == 0) {
+				irc->cap_pre_away = FALSE;
 			} else if (strcmp(cap_array[i], "draft/metadata-2") == 0 ||
 					   strcmp(cap_array[i], "metadata-2") == 0 ||
 					   strcmp(cap_array[i], "draft/metadata") == 0 ||
@@ -3095,6 +3101,8 @@ irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **arg
 				irc->cap_chathistory = TRUE;
 			} else if (strcmp(cap_array[i], "draft/event-playback") == 0 || strcmp(cap_array[i], "event-playback") == 0) {
 				irc->cap_event_playback = TRUE;
+			} else if (strcmp(cap_array[i], "draft/pre-away") == 0 || strcmp(cap_array[i], "pre-away") == 0) {
+				irc->cap_pre_away = TRUE;
 			} else if (strcmp(cap_array[i], "draft/metadata-2") == 0 ||
 					   strcmp(cap_array[i], "metadata-2") == 0 ||
 					   strcmp(cap_array[i], "draft/metadata") == 0 ||
@@ -3146,6 +3154,24 @@ irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **arg
 				irc->cap_chathistory = TRUE;
 			} else if (strcmp(cap_array[i], "draft/event-playback") == 0 || strcmp(cap_array[i], "event-playback") == 0) {
 				irc->cap_event_playback = TRUE;
+			} else if (strcmp(cap_array[i], "draft/pre-away") == 0 || strcmp(cap_array[i], "pre-away") == 0) {
+				irc->cap_pre_away = TRUE;
+				PurplePresence *presence = purple_account_get_presence(irc->account);
+				PurpleStatus *status = presence ? purple_presence_get_active_status(presence) : NULL;
+				if (status && purple_status_is_active(status)) {
+					const char *status_id = purple_status_get_id(status);
+					if (purple_strequal(status_id, "away")) {
+						const char *away_msg = purple_status_get_attr_string(status, "message");
+						char *away_buf;
+						if (away_msg && *away_msg) {
+							away_buf = irc_format(irc, "v:", "AWAY", away_msg);
+						} else {
+							away_buf = irc_format(irc, "v", "AWAY *");
+						}
+						irc_priority_send(irc, away_buf);
+						g_free(away_buf);
+					}
+				}
 			} else if (strcmp(cap_array[i], "draft/metadata-2") == 0 ||
 					   strcmp(cap_array[i], "metadata-2") == 0 ||
 					   strcmp(cap_array[i], "draft/metadata") == 0 ||

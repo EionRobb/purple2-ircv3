@@ -32,6 +32,7 @@ sudo make install
 * [`monitor`](https://ircv3.net/specs/extensions/monitor) - server-side buddy list presence monitoring
 * [`multi-prefix`](https://ircv3.net/specs/extensions/multi-prefix) - requests all user channel status prefixes (e.g. `@+` for op+voice) in NAMES and WHO replies
 * [`multiline`](https://ircv3.net/specs/extensions/multiline) - supports multiline message batches with embedded newlines (draft)
+* [`pre-away`](https://ircv3.net/specs/extensions/pre-away) - sets away state during connection registration and supports unspecified away reasons (draft)
 * [`sasl`](https://ircv3.net/specs/extensions/sasl-3.2) - SASL authentication support
 * [`server-time`](https://ircv3.net/specs/extensions/server-time) - shows correct message timestamp of relayed messages
 * [`setname`](https://ircv3.net/specs/extensions/setname) - dynamic realname changes without reconnecting

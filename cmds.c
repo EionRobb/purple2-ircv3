@@ -49,11 +49,13 @@ irc_cmd_away(struct irc_conn *irc, const char *cmd, const char *target, const ch
 {
 	char *buf, *message;
 
-	if (args[0] && !purple_strequal(cmd, "back")) {
+	if (args[0] && *args[0] && !purple_strequal(cmd, "back")) {
 		message = purple_markup_strip_html(args[0]);
 		purple_util_chrreplace(message, '\n', ' ');
 		buf = irc_format(irc, "v:", "AWAY", message);
 		g_free(message);
+	} else if (purple_strequal(cmd, "away") && irc->cap_pre_away) {
+		buf = irc_format(irc, "v", "AWAY *");
 	} else {
 		buf = irc_format(irc, "v", "AWAY");
 	}
