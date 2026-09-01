@@ -1251,3 +1251,18 @@ irc_cmd_avatar(struct irc_conn *irc, const char *cmd, const char *target, const 
 	return 0;
 }
 
+int
+irc_cmd_setname(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
+{
+	char *buf;
+	const char *name = (args && args[0]) ? args[0] : "";
+
+	purple_account_set_string(irc->account, "realname", name);
+	buf = irc_format(irc, "v:", "SETNAME", name);
+	irc_send(irc, buf);
+	g_free(buf);
+
+	return 0;
+}
+
+

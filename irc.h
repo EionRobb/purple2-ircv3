@@ -188,6 +188,7 @@ struct irc_conn {
 	guint chathistory_limit;
 	gboolean cap_event_playback;
 	gboolean cap_multiline;
+	gboolean cap_setname;
 	guint multiline_max_bytes;
 	guint multiline_max_lines;
 	GHashTable *active_batches;
@@ -404,6 +405,8 @@ void
 irc_msg_ignore(struct irc_conn *irc, const char *name, const char *from, char **args);
 void
 irc_msg_metadata(struct irc_conn *irc, const char *name, const char *from, char **args);
+void
+irc_msg_setname(struct irc_conn *irc, const char *name, const char *from, char **args);
 
 void
 irc_cmd_table_build(struct irc_conn *irc);
@@ -486,6 +489,8 @@ int
 irc_cmd_avatar(struct irc_conn *irc, const char *cmd, const char *target, const char **args);
 int
 irc_cmd_stats(struct irc_conn *irc, const char *cmd, const char *target, const char **args);
+int
+irc_cmd_setname(struct irc_conn *irc, const char *cmd, const char *target, const char **args);
 int
 irc_cmd_lusers(struct irc_conn *irc, const char *cmd, const char *target, const char **args);
 int

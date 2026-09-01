@@ -32,6 +32,7 @@ sudo make install
 * [`multiline`](https://ircv3.net/specs/extensions/multiline) - supports multiline message batches with embedded newlines (draft)
 * [`sasl`](https://ircv3.net/specs/extensions/sasl-3.2) - SASL authentication support
 * [`server-time`](https://ircv3.net/specs/extensions/server-time) - shows correct message timestamp of relayed messages
+* [`setname`](https://ircv3.net/specs/extensions/setname) - dynamic realname changes without reconnecting
 * [`sts`](https://ircv3.net/specs/extensions/sts) - Strict Transport Security policy enforcement
 * [`utf8-only`](https://ircv3.net/specs/extensions/utf8-only) - UTF-8 encoding enforcement
 * [`whox`](https://ircv3.net/specs/extensions/whox) - extended WHO queries for efficient user status/account retrieval
@@ -41,7 +42,7 @@ sudo make install
 * **Comprehensive Slash Commands & Aliases**:
   * **Services**: Shortcuts for `/ns` (NickServ), `/cs` (ChanServ), `/ms` (MemoServ), `/os` (OperServ), `/hs` / `/hostserv` (HostServ), `/bs` / `/botserv` (BotServ), `/authserv`.
   * **Channel Moderation**: `/ban` and `/unban` (with automatic nickname-to-hostmask resolution), `/kb` / `/kickban` (ban mask and kick in one step), `/quiet` / `/mute`, `/unquiet` / `/unmute`, and `/cycle` / `/hop` (part and immediately rejoin active channel).
-  * **Server & Discovery**: `/help` (interactive IRC help `704`-`706`), `/who`, `/motd`, `/admin`, `/info`, `/stats`, `/lusers`, `/links`, `/avatar` (set or clear avatar URL), and `/raw` (alias for `/quote`).
+  * **Server & Discovery**: `/help` (interactive IRC help `704`-`706`), `/who`, `/motd`, `/admin`, `/info`, `/stats`, `/lusers`, `/links`, `/avatar` (set or clear avatar URL), `/setname` / `/realname` (dynamically update realname), and `/raw` (alias for `/quote`).
 * **Attention / Nudges**: ASCII `\007` (BEL) integration with Pidgin's native Nudge/Attention API to shake/flash windows and play sound alerts on incoming nudges, as well as sending nudges via `/nudge` or the UI button.
 * **URI Handling**: Native `irc://` and `ircs://` protocol handler support for opening IRC links directly in Pidgin.
 * **Extended Text Formatting & Colors**: Bidirectional formatting support (aka MIRC colours) including bold, italics (`\x1D`), underline, strikethrough (`\x1E`), monospace (`\x11`), reverse video (`\x16`), 24-bit RGB hex colors (`\x04`), and extended 16-98 mIRC color palettes.

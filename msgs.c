@@ -2883,6 +2883,8 @@ irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **arg
 				g_string_append(req, "account-tag ");
 			} else if (strcmp(cap_array[i], "chghost") == 0) {
 				g_string_append(req, "chghost ");
+			} else if (strcmp(cap_array[i], "setname") == 0) {
+				g_string_append(req, "setname ");
 			} else if (strcmp(cap_array[i], "extended-monitor") == 0 || strcmp(cap_array[i], "draft/extended-monitor") == 0) {
 				g_string_append(req, "extended-monitor ");
 			} else if (g_str_has_prefix(cap_array[i], "draft/multiline") || g_str_has_prefix(cap_array[i], "multiline")) {
@@ -2952,6 +2954,8 @@ irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **arg
 				irc->cap_account_tag = FALSE;
 			} else if (strcmp(cap_array[i], "chghost") == 0) {
 				irc->cap_chghost = FALSE;
+			} else if (strcmp(cap_array[i], "setname") == 0) {
+				irc->cap_setname = FALSE;
 			} else if (strcmp(cap_array[i], "extended-monitor") == 0 || strcmp(cap_array[i], "draft/extended-monitor") == 0) {
 				irc->cap_extended_monitor = FALSE;
 			} else if (g_str_has_prefix(cap_array[i], "draft/multiline") || g_str_has_prefix(cap_array[i], "multiline")) {
@@ -2988,6 +2992,8 @@ irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **arg
 				irc->cap_account_tag = TRUE;
 			} else if (strcmp(cap_array[i], "chghost") == 0) {
 				irc->cap_chghost = TRUE;
+			} else if (strcmp(cap_array[i], "setname") == 0) {
+				irc->cap_setname = TRUE;
 			} else if (strcmp(cap_array[i], "extended-monitor") == 0 || strcmp(cap_array[i], "draft/extended-monitor") == 0) {
 				irc->cap_extended_monitor = TRUE;
 			} else if (g_str_has_prefix(cap_array[i], "draft/multiline") || g_str_has_prefix(cap_array[i], "multiline")) {
@@ -3029,6 +3035,8 @@ irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **arg
 				irc->cap_account_tag = TRUE;
 			} else if (strcmp(cap_array[i], "chghost") == 0) {
 				irc->cap_chghost = TRUE;
+			} else if (strcmp(cap_array[i], "setname") == 0) {
+				irc->cap_setname = TRUE;
 			} else if (strcmp(cap_array[i], "extended-monitor") == 0 || strcmp(cap_array[i], "draft/extended-monitor") == 0) {
 				irc->cap_extended_monitor = TRUE;
 			} else if (g_str_has_prefix(cap_array[i], "draft/multiline") || g_str_has_prefix(cap_array[i], "multiline")) {
@@ -3045,6 +3053,7 @@ irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **arg
 					   strcmp(cap_array[i], "metadata") == 0) {
 				irc->cap_metadata_2 = TRUE;
 			}
+
 #ifdef HAVE_CYRUS_SASL
 			else if (strcmp(cap_array[i], "sasl") == 0) {
 				sasl_acked = TRUE;
@@ -3511,4 +3520,45 @@ irc_msg_whoisbot(struct irc_conn *irc, const char *name, const char *from, char 
 		purple_blist_node_set_bool(PURPLE_BLIST_NODE(buddy), "bot", TRUE);
 	}
 }
+
+void
+irc_msg_setname(struct irc_conn *irc, const char *name, const char *from, char **args)
+{
+	PurpleConnection *gc;
+	char *nick;
+	const char *realname;
+	GSList *chats;
+
+	gc = purple_account_get_connection(irc->account);
+	if (!gc || !from || !args || !args[0])
+		return;
+
+	nick = irc_mask_nick(from);
+	if (!nick)
+		return;
+
+	realname = args[0];
+
+	chats = gc->buddy_chats;
+	while (chats) {
+		PurpleConvChat *chat = PURPLE_CONV_CHAT(chats->data);
+		PurpleConvChatBuddy *cb = purple_conv_chat_cb_find(chat, nick);
+		if (cb) {
+			purple_conv_chat_cb_set_attribute(chat, cb, "realname", realname);
+		}
+		chats = chats->next;
+	}
+
+	PurpleBuddy *buddy = purple_find_buddy(irc->account, nick);
+	if (buddy) {
+		purple_blist_node_set_string(PURPLE_BLIST_NODE(buddy), "realname", realname);
+	}
+
+	if (purple_strequal(nick, purple_connection_get_display_name(gc))) {
+		purple_account_set_string(irc->account, "realname", realname);
+	}
+
+	g_free(nick);
+}
+
 
