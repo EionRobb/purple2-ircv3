@@ -28,7 +28,7 @@ sudo make install
 * [`invite-notify`](https://ircv3.net/specs/extensions/invite-notify) - notifies when someone has been invited to a channel
 * [`labeled-response`](https://ircv3.net/specs/extensions/labeled-response) - correlates sent commands with server responses to avoid repeating sent messages
 * [`message-tags`](https://ircv3.net/specs/extensions/message-tags) - typing notifications
-* [`metadata-2`](https://ircv3.net/specs/extensions/metadata) - user avatars / buddy icons
+* [`metadata-2`](https://ircv3.net/specs/extensions/metadata) - user and channel metadata (avatars, display-names, pronouns, status, homepage, bot flag, colors)
 * [`monitor`](https://ircv3.net/specs/extensions/monitor) - server-side buddy list presence monitoring
 * [`multi-prefix`](https://ircv3.net/specs/extensions/multi-prefix) - requests all user channel status prefixes (e.g. `@+` for op+voice) in NAMES and WHO replies
 * [`multiline`](https://ircv3.net/specs/extensions/multiline) - supports multiline message batches with embedded newlines (draft)
@@ -41,7 +41,7 @@ sudo make install
 * [`whox`](https://ircv3.net/specs/extensions/whox) - extended WHO queries for efficient user status/account retrieval
 
 ## Additional Features
-* **Modern IRC Protocol & Error Handling**: Comprehensive channel join error reporting for password-protected channels (`475` `+k`), full channels (`471` `+l`), invite-only channels (`473`), bans (`474`), channel limits (`405`), and invalid masks (`476`), invitation confirmation (`341` `RPL_INVITING`), KNOCK support (`/knock` command, `710` `RPL_KNOCK` channel notifications, `711` delivery confirmation, and `712`-`715` error diagnostics), as well as expanded WHOIS metadata reporting (TLS connection ciphers `671`/`275`, real/actual connecting host/IP `338`/`378`, admin and network service info `309`, cert fingerprints `276`, user modes `379`, and bot status `335`), and server registration burst quiet handling (`004` `RPL_MYINFO`).
+* **Modern IRC Protocol & Error Handling**: Comprehensive channel join error reporting for password-protected channels (`475` `+k`), full channels (`471` `+l`), invite-only channels (`473`), bans (`474`), channel limits (`405`), and invalid masks (`476`), invitation confirmation (`341` `RPL_INVITING`), KNOCK support (`/knock` command, 710 `RPL_KNOCK` channel notifications, `711` delivery confirmation, and `712`-`715` error diagnostics), as well as expanded WHOIS metadata reporting (TLS connection ciphers `671`/`275`, real/actual connecting host/IP `338`/`378`, admin and network service info `309`, cert fingerprints `276`, user modes `379`, and bot status `335`), and server registration burst quiet handling (`004` `RPL_MYINFO`).
 * **Comprehensive Slash Commands & Aliases**:
   * **Services**: Shortcuts for `/ns` (NickServ), `/cs` (ChanServ), `/ms` (MemoServ), `/os` (OperServ), `/hs` / `/hostserv` (HostServ), `/bs` / `/botserv` (BotServ), `/authserv`.
   * **Channel Moderation**: `/ban` and `/unban` (with automatic nickname-to-hostmask resolution), `/kb` / `/kickban` (ban mask and kick in one step), `/quiet` / `/mute`, `/unquiet` / `/unmute`, `/rename` (rename channel via IRCv3 RENAME), and `/cycle` / `/hop` (part and immediately rejoin active channel).
@@ -59,7 +59,7 @@ sudo make install
 * **Smart Notice Routing & Noise Filtering**:
   * **ChanServ & Service Notice Routing**: Directs `[#channel]` entry notices and ChanServ access list notifications into the relevant channel's conversation window as system messages rather than opening disruptive query tabs.
   * **Connection Cruft Suppression**: Filters out noisy server handshake notices (UnrealIRCd hostname/ident checks, `[freenode-info]`, CTCP stats bot probes, and echoed self-invite notices).
-* **Avatar & Buddy Icon Support**: Automatic fetching and rendering of user avatars and buddy icons via HTTP/HTTPS metadata (`draft/metadata-2`, `metadata-2`, `draft/metadata`, `metadata`), setting own avatar via account option or `/avatar <url>`, and proactive `METADATA GET` queries for buddy list contacts.
+* **User & Channel Metadata Support**: Automatic fetching and rendering of user avatars and buddy icons via HTTP/HTTPS metadata (`draft/metadata-2`, `metadata-2`, `draft/metadata`, `metadata`), setting own avatar via account option or `/avatar <url>`, proactive `METADATA GET` queries for buddy list contacts, and synchronized display of `display-name`, `pronouns`, `status`, `homepage`, `bot`, and `color` in buddy tooltips, WHOIS dialogs, and chat buddy lists.
 * **TLS Client Certificates & SASL EXTERNAL**: Supports client certificate authentication (CertFP) via a `.pem` file option (relative to the user's `.purple` folder or absolute path), with pre-connection format validation.
 * **Event Loop Integration**: Refactored timers and event handlers to run through libpurple's main event loop.
 

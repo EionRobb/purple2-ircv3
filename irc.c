@@ -464,6 +464,38 @@ irc_list_emblem(PurpleBuddy *buddy)
 	return NULL;
 }
 
+static void
+irc_tooltip_text(PurpleBuddy *buddy, PurpleNotifyUserInfo *user_info, gboolean full)
+{
+	PurpleBlistNode *node = PURPLE_BLIST_NODE(buddy);
+	const char *str;
+
+	if ((str = purple_blist_node_get_string(node, "display-name")) != NULL && *str) {
+		purple_notify_user_info_add_pair_plaintext(user_info, _("Display Name"), str);
+	}
+	if ((str = purple_blist_node_get_string(node, "realname")) != NULL && *str) {
+		purple_notify_user_info_add_pair_plaintext(user_info, _("Real Name"), str);
+	}
+	if ((str = purple_blist_node_get_string(node, "userhost")) != NULL && *str) {
+		purple_notify_user_info_add_pair_plaintext(user_info, _("Hostmask"), str);
+	}
+	if ((str = purple_blist_node_get_string(node, "account")) != NULL && *str) {
+		purple_notify_user_info_add_pair_plaintext(user_info, _("Account"), str);
+	}
+	if ((str = purple_blist_node_get_string(node, "pronouns")) != NULL && *str) {
+		purple_notify_user_info_add_pair_plaintext(user_info, _("Pronouns"), str);
+	}
+	if ((str = purple_blist_node_get_string(node, "status")) != NULL && *str) {
+		purple_notify_user_info_add_pair_plaintext(user_info, _("Status"), str);
+	}
+	if ((str = purple_blist_node_get_string(node, "homepage")) != NULL && *str) {
+		purple_notify_user_info_add_pair_plaintext(user_info, _("Homepage"), str);
+	}
+	if (purple_blist_node_get_bool(node, "bot")) {
+		purple_notify_user_info_add_pair_plaintext(user_info, _("Bot"), _("Yes"));
+	}
+}
+
 GList *
 irc_get_attention_types(PurpleAccount *account)
 {
@@ -1017,7 +1049,7 @@ irc_get_info(PurpleConnection *gc, const char *who)
 	args[1] = NULL;
 	irc_cmd_whois(irc, "whois", NULL, args);
 	if (irc->cap_metadata_2 && who && *who) {
-		char *buf = irc_format(irc, "vvvv", "METADATA", who, "GET", "avatar");
+		char *buf = irc_format(irc, "vvvv", "METADATA", who, "GET", "avatar display-name pronouns status homepage bot color");
 		irc_send(irc, buf);
 		g_free(buf);
 	}
@@ -1081,7 +1113,7 @@ irc_add_buddy(PurpleConnection *gc, PurpleBuddy *buddy, PurpleGroup *group)
 		}
 	}
 	if (irc->cap_metadata_2) {
-		char *buf = irc_format(irc, "vvvv", "METADATA", bname, "GET", "avatar");
+		char *buf = irc_format(irc, "vvvv", "METADATA", bname, "GET", "avatar display-name pronouns status homepage bot color");
 		irc_send(irc, buf);
 		g_free(buf);
 	}
@@ -1681,6 +1713,7 @@ _init_plugin(PurplePlugin *plugin)
 	prpl_info->list_icon = irc_blist_icon;
 	prpl_info->list_emblem = irc_list_emblem;
 	prpl_info->status_text = irc_status_text;
+	prpl_info->tooltip_text = irc_tooltip_text;
 	prpl_info->status_types = irc_status_types;
 	prpl_info->chat_info = irc_chat_join_info;
 	prpl_info->chat_info_defaults = irc_chat_info_defaults;
