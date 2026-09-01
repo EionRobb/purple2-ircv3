@@ -2958,6 +2958,8 @@ irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **arg
 				g_string_append(req, "multi-prefix ");
 			} else if (strcmp(cap_array[i], "userhost-in-names") == 0) {
 				g_string_append(req, "userhost-in-names ");
+			} else if (strcmp(cap_array[i], "standard-replies") == 0) {
+				g_string_append(req, "standard-replies ");
 			} else if (strcmp(cap_array[i], "extended-monitor") == 0 || strcmp(cap_array[i], "draft/extended-monitor") == 0) {
 				g_string_append(req, "extended-monitor ");
 			} else if (g_str_has_prefix(cap_array[i], "draft/multiline") || g_str_has_prefix(cap_array[i], "multiline")) {
@@ -3035,6 +3037,8 @@ irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **arg
 				irc->cap_multi_prefix = FALSE;
 			} else if (strcmp(cap_array[i], "userhost-in-names") == 0) {
 				irc->cap_userhost_in_names = FALSE;
+			} else if (strcmp(cap_array[i], "standard-replies") == 0) {
+				irc->cap_standard_replies = FALSE;
 			} else if (strcmp(cap_array[i], "extended-monitor") == 0 || strcmp(cap_array[i], "draft/extended-monitor") == 0) {
 				irc->cap_extended_monitor = FALSE;
 			} else if (g_str_has_prefix(cap_array[i], "draft/multiline") || g_str_has_prefix(cap_array[i], "multiline")) {
@@ -3079,6 +3083,8 @@ irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **arg
 				irc->cap_multi_prefix = TRUE;
 			} else if (strcmp(cap_array[i], "userhost-in-names") == 0) {
 				irc->cap_userhost_in_names = TRUE;
+			} else if (strcmp(cap_array[i], "standard-replies") == 0) {
+				irc->cap_standard_replies = TRUE;
 			} else if (strcmp(cap_array[i], "extended-monitor") == 0 || strcmp(cap_array[i], "draft/extended-monitor") == 0) {
 				irc->cap_extended_monitor = TRUE;
 			} else if (g_str_has_prefix(cap_array[i], "draft/multiline") || g_str_has_prefix(cap_array[i], "multiline")) {
@@ -3128,6 +3134,8 @@ irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **arg
 				irc->cap_multi_prefix = TRUE;
 			} else if (strcmp(cap_array[i], "userhost-in-names") == 0) {
 				irc->cap_userhost_in_names = TRUE;
+			} else if (strcmp(cap_array[i], "standard-replies") == 0) {
+				irc->cap_standard_replies = TRUE;
 			} else if (strcmp(cap_array[i], "extended-monitor") == 0 || strcmp(cap_array[i], "draft/extended-monitor") == 0) {
 				irc->cap_extended_monitor = TRUE;
 			} else if (g_str_has_prefix(cap_array[i], "draft/multiline") || g_str_has_prefix(cap_array[i], "multiline")) {
@@ -3796,6 +3804,102 @@ irc_msg_rename(struct irc_conn *irc, const char *name, const char *from, char **
 		g_free(msg);
 	}
 }
+
+void
+irc_msg_standard_reply(struct irc_conn *irc, const char *name, const char *from, char **args)
+{
+	PurpleConnection *gc = purple_account_get_connection(irc->account);
+	const char *command = args[0];
+	const char *code = args[1];
+	const char *rest = args[2];
+	const char *description = NULL;
+	char *context = NULL;
+	PurpleConversation *convo = NULL;
+	char *formatted_msg = NULL;
+
+	if (!gc || !code)
+		return;
+
+	if (rest) {
+		const char *colon = strchr(rest, ':');
+		if (colon) {
+			description = colon + 1;
+			if (colon > rest) {
+				context = g_strndup(rest, colon - rest);
+				g_strstrip(context);
+			}
+		} else {
+			description = rest;
+		}
+	}
+	if (!description || !*description)
+		description = code;
+
+	/* Look for a relevant conversation target from context or command */
+	if (context && *context) {
+		gchar **ctx_tokens = g_strsplit(context, " ", -1);
+		int k;
+		for (k = 0; ctx_tokens[k] != NULL; k++) {
+			if (irc_ischannel(ctx_tokens[k])) {
+				convo = purple_find_conversation_with_account(PURPLE_CONV_TYPE_CHAT, ctx_tokens[k], irc->account);
+				if (convo)
+					break;
+			} else {
+				convo = purple_find_conversation_with_account(PURPLE_CONV_TYPE_IM, ctx_tokens[k], irc->account);
+				if (convo)
+					break;
+			}
+		}
+		g_strfreev(ctx_tokens);
+	}
+
+	if (!convo && command && strcmp(command, "*") != 0) {
+		if (irc_ischannel(command)) {
+			convo = purple_find_conversation_with_account(PURPLE_CONV_TYPE_CHAT, command, irc->account);
+		} else {
+			convo = purple_find_conversation_with_account(PURPLE_CONV_TYPE_IM, command, irc->account);
+		}
+	}
+
+	if (convo) {
+		if (purple_strequal(name, "fail")) {
+			formatted_msg = g_strdup_printf(_("Error (%s): %s"), code, description);
+		} else if (purple_strequal(name, "warn")) {
+			formatted_msg = g_strdup_printf(_("Warning (%s): %s"), code, description);
+		} else {
+			formatted_msg = g_strdup_printf(_("Notice (%s): %s"), code, description);
+		}
+		purple_conversation_write(convo, "", formatted_msg, PURPLE_MESSAGE_SYSTEM | PURPLE_MESSAGE_NO_LOG, time(NULL));
+		g_free(formatted_msg);
+	} else {
+		if (purple_strequal(name, "fail")) {
+			if (purple_connection_get_state(gc) == PURPLE_CONNECTING) {
+				purple_connection_error_reason(gc, PURPLE_CONNECTION_ERROR_NETWORK_ERROR, description);
+			} else {
+				char *title = g_strdup_printf(_("IRC Error (%s)"), code);
+				char *primary = (command && strcmp(command, "*") != 0) ? g_strdup_printf(_("Command '%s' failed"), command) : NULL;
+				purple_notify_error(gc, title, primary, description);
+				g_free(title);
+				g_free(primary);
+			}
+		} else if (purple_strequal(name, "warn")) {
+			char *title = g_strdup_printf(_("IRC Warning (%s)"), code);
+			char *primary = (command && strcmp(command, "*") != 0) ? g_strdup_printf(_("Command: %s"), command) : NULL;
+			purple_notify_warning(gc, title, primary, description);
+			g_free(title);
+			g_free(primary);
+		} else {
+			char *title = g_strdup_printf(_("IRC Notice (%s)"), code);
+			char *primary = (command && strcmp(command, "*") != 0) ? g_strdup_printf(_("Command: %s"), command) : NULL;
+			purple_notify_info(gc, title, primary, description);
+			g_free(title);
+			g_free(primary);
+		}
+	}
+
+	g_free(context);
+}
+
 
 
 

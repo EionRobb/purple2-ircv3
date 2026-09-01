@@ -184,12 +184,14 @@ static struct _irc_msg {
 	{ "batch", ":", 1, irc_msg_batch },			 /* Batch notification (IRCv3)	*/
 	{ "cap", "vv:", 3, irc_msg_cap },			 /* Capabilities negotiation		*/
 	{ "chghost", "vv", 2, irc_msg_chghost },		 /* Host/ident change (IRCv3)	*/
+	{ "fail", "vv*", 2, irc_msg_standard_reply }, /* Standard Replies: FAIL (IRCv3) */
 	{ "invite", "n:", 2, irc_msg_invite },		 /* Invited			*/
 	{ "join", ":", 1, irc_msg_join },			 /* Joined a channel		*/
 	{ "kick", "cn:", 3, irc_msg_kick },			 /* KICK				*/
 	{ "metadata", "tvv:", 3, irc_msg_metadata }, /* IRCv3 metadata            */
 	{ "mode", "tv:", 2, irc_msg_mode },			 /* MODE for channel		*/
 	{ "nick", ":", 1, irc_msg_nick },			 /* Nick change			*/
+	{ "note", "vv*", 2, irc_msg_standard_reply }, /* Standard Replies: NOTE (IRCv3) */
 	{ "notice", "t:", 2, irc_msg_notice },		 /* NOTICE recv			*/
 	{ "part", "c:", 1, irc_msg_part },			 /* Parted a channel		*/
 	{ "ping", ":", 1, irc_msg_ping },			 /* Received PING from server	*/
@@ -201,6 +203,7 @@ static struct _irc_msg {
 	{ "topic", "c:", 2, irc_msg_topic },		 /* TOPIC command		*/
 	{ "quit", ":", 1, irc_msg_quit },			 /* QUIT notice			*/
 	{ "wallops", ":", 1, irc_msg_wallops },		 /* WALLOPS command		*/
+	{ "warn", "vv*", 2, irc_msg_standard_reply }, /* Standard Replies: WARN (IRCv3) */
 	{ NULL, NULL, 0, NULL }
 };
 

@@ -35,6 +35,7 @@ sudo make install
 * [`sasl`](https://ircv3.net/specs/extensions/sasl-3.2) - SASL authentication support
 * [`server-time`](https://ircv3.net/specs/extensions/server-time) - shows correct message timestamp of relayed messages
 * [`setname`](https://ircv3.net/specs/extensions/setname) - dynamic realname changes without reconnecting
+* [`standard-replies`](https://ircv3.net/specs/extensions/standard-replies) - handles contextual `FAIL`, `WARN`, and `NOTE` server command replies
 * [`sts`](https://ircv3.net/specs/extensions/sts) - Strict Transport Security policy enforcement
 * [`userhost-in-names`](https://ircv3.net/specs/extensions/userhost-in-names) - includes user hostmasks in NAMES list replies upon channel join
 * [`utf8-only`](https://ircv3.net/specs/extensions/utf8-only) - UTF-8 encoding enforcement

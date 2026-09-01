@@ -192,6 +192,7 @@ struct irc_conn {
 	gboolean cap_channel_rename;
 	gboolean cap_multi_prefix;
 	gboolean cap_userhost_in_names;
+	gboolean cap_standard_replies;
 	guint multiline_max_bytes;
 	guint multiline_max_lines;
 	GHashTable *active_batches;
@@ -412,6 +413,8 @@ void
 irc_msg_setname(struct irc_conn *irc, const char *name, const char *from, char **args);
 void
 irc_msg_rename(struct irc_conn *irc, const char *name, const char *from, char **args);
+void
+irc_msg_standard_reply(struct irc_conn *irc, const char *name, const char *from, char **args);
 
 void
 irc_cmd_table_build(struct irc_conn *irc);
