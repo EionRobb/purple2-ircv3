@@ -2885,6 +2885,8 @@ irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **arg
 				g_string_append(req, "chghost ");
 			} else if (strcmp(cap_array[i], "setname") == 0) {
 				g_string_append(req, "setname ");
+			} else if (strcmp(cap_array[i], "draft/channel-rename") == 0 || strcmp(cap_array[i], "channel-rename") == 0) {
+				g_string_append_printf(req, "%s ", cap_array[i]);
 			} else if (strcmp(cap_array[i], "extended-monitor") == 0 || strcmp(cap_array[i], "draft/extended-monitor") == 0) {
 				g_string_append(req, "extended-monitor ");
 			} else if (g_str_has_prefix(cap_array[i], "draft/multiline") || g_str_has_prefix(cap_array[i], "multiline")) {
@@ -2956,6 +2958,8 @@ irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **arg
 				irc->cap_chghost = FALSE;
 			} else if (strcmp(cap_array[i], "setname") == 0) {
 				irc->cap_setname = FALSE;
+			} else if (strcmp(cap_array[i], "draft/channel-rename") == 0 || strcmp(cap_array[i], "channel-rename") == 0) {
+				irc->cap_channel_rename = FALSE;
 			} else if (strcmp(cap_array[i], "extended-monitor") == 0 || strcmp(cap_array[i], "draft/extended-monitor") == 0) {
 				irc->cap_extended_monitor = FALSE;
 			} else if (g_str_has_prefix(cap_array[i], "draft/multiline") || g_str_has_prefix(cap_array[i], "multiline")) {
@@ -2994,6 +2998,8 @@ irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **arg
 				irc->cap_chghost = TRUE;
 			} else if (strcmp(cap_array[i], "setname") == 0) {
 				irc->cap_setname = TRUE;
+			} else if (strcmp(cap_array[i], "draft/channel-rename") == 0 || strcmp(cap_array[i], "channel-rename") == 0) {
+				irc->cap_channel_rename = TRUE;
 			} else if (strcmp(cap_array[i], "extended-monitor") == 0 || strcmp(cap_array[i], "draft/extended-monitor") == 0) {
 				irc->cap_extended_monitor = TRUE;
 			} else if (g_str_has_prefix(cap_array[i], "draft/multiline") || g_str_has_prefix(cap_array[i], "multiline")) {
@@ -3037,6 +3043,8 @@ irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **arg
 				irc->cap_chghost = TRUE;
 			} else if (strcmp(cap_array[i], "setname") == 0) {
 				irc->cap_setname = TRUE;
+			} else if (strcmp(cap_array[i], "draft/channel-rename") == 0 || strcmp(cap_array[i], "channel-rename") == 0) {
+				irc->cap_channel_rename = TRUE;
 			} else if (strcmp(cap_array[i], "extended-monitor") == 0 || strcmp(cap_array[i], "draft/extended-monitor") == 0) {
 				irc->cap_extended_monitor = TRUE;
 			} else if (g_str_has_prefix(cap_array[i], "draft/multiline") || g_str_has_prefix(cap_array[i], "multiline")) {
@@ -3560,5 +3568,39 @@ irc_msg_setname(struct irc_conn *irc, const char *name, const char *from, char *
 
 	g_free(nick);
 }
+
+void
+irc_msg_rename(struct irc_conn *irc, const char *name, const char *from, char **args)
+{
+	PurpleConversation *convo;
+	const char *old_chan = args[0];
+	const char *new_chan = args[1];
+	const char *reason = (args && args[2] && *args[2]) ? args[2] : NULL;
+	const char *last_time;
+	char *msg;
+
+	if (!old_chan || !*old_chan || !new_chan || !*new_chan)
+		return;
+
+	last_time = irc_get_last_msg_time(irc, old_chan);
+	if (last_time && *last_time) {
+		irc_set_last_msg_time(irc, new_chan, last_time);
+	}
+
+	convo = purple_find_conversation_with_account(PURPLE_CONV_TYPE_CHAT, old_chan, irc->account);
+	if (convo) {
+		purple_conversation_set_name(convo, new_chan);
+		purple_conversation_set_title(convo, new_chan);
+
+		if (reason && *reason) {
+			msg = g_strdup_printf(_("%s is now known as %s: %s"), old_chan, new_chan, reason);
+		} else {
+			msg = g_strdup_printf(_("%s is now known as %s."), old_chan, new_chan);
+		}
+		purple_conv_chat_write(PURPLE_CONV_CHAT(convo), "", msg, PURPLE_MESSAGE_SYSTEM | PURPLE_MESSAGE_NO_LOG, time(NULL));
+		g_free(msg);
+	}
+}
+
 
 

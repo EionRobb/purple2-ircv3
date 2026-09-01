@@ -1265,4 +1265,53 @@ irc_cmd_setname(struct irc_conn *irc, const char *cmd, const char *target, const
 	return 0;
 }
 
+int
+irc_cmd_rename(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
+{
+	char *buf;
+	const char *old_chan = NULL;
+	const char *new_chan = NULL;
+	const char *reason = NULL;
+
+	if (!args || !args[0] || !*args[0])
+		return 0;
+
+	if (args[1] && *args[1]) {
+		if (irc_ischannel(args[0])) {
+			old_chan = args[0];
+			new_chan = args[1];
+			reason = args[2];
+		} else if (target && irc_ischannel(target)) {
+			old_chan = target;
+			new_chan = args[0];
+			reason = args[1];
+		} else {
+			old_chan = args[0];
+			new_chan = args[1];
+			reason = args[2];
+		}
+	} else {
+		if (target && irc_ischannel(target)) {
+			old_chan = target;
+			new_chan = args[0];
+		} else {
+			return 0;
+		}
+	}
+
+	if (!old_chan || !new_chan)
+		return 0;
+
+	if (reason && *reason) {
+		buf = irc_format(irc, "vcc:", "RENAME", old_chan, new_chan, reason);
+	} else {
+		buf = irc_format(irc, "vcc", "RENAME", old_chan, new_chan);
+	}
+	irc_send(irc, buf);
+	g_free(buf);
+
+	return 0;
+}
+
+
 

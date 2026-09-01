@@ -18,6 +18,7 @@ sudo make install
 * [`away-notify`](https://ircv3.net/specs/extensions/away-notify) - instantly notifies when users go away or return
 * [`batch`](https://ircv3.net/specs/extensions/batch) - groups related server messages together
 * [`bot-mode`](https://ircv3.net/specs/extensions/bot-mode) - marks bot users and displays bot emblems on the buddy list
+* [`channel-rename`](https://ircv3.net/specs/extensions/channel-rename) - seamlessly handles dynamic channel name changes (`RENAME`) without parting and rejoining (draft)
 * [`chathistory`](https://ircv3.net/specs/extensions/chathistory) - requests message history / backscroll from servers and bouncers
 * [`chghost`](https://ircv3.net/specs/extensions/chghost) - updates user hostnames and idents without synthetic reconnects
 * [`echo-message`](https://ircv3.net/specs/extensions/echo-message) - echoes back sent messages
@@ -41,7 +42,7 @@ sudo make install
 * **Modern IRC Protocol & Error Handling**: Comprehensive channel join error reporting for password-protected channels (`475` `+k`), full channels (`471` `+l`), invite-only channels (`473`), bans (`474`), channel limits (`405`), and invalid masks (`476`), invitation confirmation (`341` `RPL_INVITING`), KNOCK support (`/knock` command, `710` `RPL_KNOCK` channel notifications, `711` delivery confirmation, and `712`-`715` error diagnostics), as well as expanded WHOIS metadata reporting (TLS connection ciphers `671`/`275`, real/actual connecting host/IP `338`/`378`, admin and network service info `309`, cert fingerprints `276`, user modes `379`, and bot status `335`), and server registration burst quiet handling (`004` `RPL_MYINFO`).
 * **Comprehensive Slash Commands & Aliases**:
   * **Services**: Shortcuts for `/ns` (NickServ), `/cs` (ChanServ), `/ms` (MemoServ), `/os` (OperServ), `/hs` / `/hostserv` (HostServ), `/bs` / `/botserv` (BotServ), `/authserv`.
-  * **Channel Moderation**: `/ban` and `/unban` (with automatic nickname-to-hostmask resolution), `/kb` / `/kickban` (ban mask and kick in one step), `/quiet` / `/mute`, `/unquiet` / `/unmute`, and `/cycle` / `/hop` (part and immediately rejoin active channel).
+  * **Channel Moderation**: `/ban` and `/unban` (with automatic nickname-to-hostmask resolution), `/kb` / `/kickban` (ban mask and kick in one step), `/quiet` / `/mute`, `/unquiet` / `/unmute`, `/rename` (rename channel via IRCv3 RENAME), and `/cycle` / `/hop` (part and immediately rejoin active channel).
   * **Server & Discovery**: `/help` (interactive IRC help `704`-`706`), `/who`, `/motd`, `/admin`, `/info`, `/stats`, `/lusers`, `/links`, `/avatar` (set or clear avatar URL), `/setname` / `/realname` (dynamically update realname), and `/raw` (alias for `/quote`).
 * **Attention / Nudges**: ASCII `\007` (BEL) integration with Pidgin's native Nudge/Attention API to shake/flash windows and play sound alerts on incoming nudges, as well as sending nudges via `/nudge` or the UI button.
 * **URI Handling**: Native `irc://` and `ircs://` protocol handler support for opening IRC links directly in Pidgin.

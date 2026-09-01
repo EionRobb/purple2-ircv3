@@ -195,6 +195,7 @@ static struct _irc_msg {
 	{ "ping", ":", 1, irc_msg_ping },			 /* Received PING from server	*/
 	{ "pong", "v:", 2, irc_msg_pong },			 /* Received PONG from server	*/
 	{ "privmsg", "t:", 2, irc_msg_privmsg },	 /* Received private message	*/
+	{ "rename", "cc:", 2, irc_msg_rename },		 /* Channel rename (IRCv3)		*/
 	{ "setname", ":", 1, irc_msg_setname },		 /* Dynamic realname change (IRCv3) */
 	{ "tagmsg", "t*", 1, irc_msg_tagmsg },		 /* Tagged message (IRCv3)	*/
 	{ "topic", "c:", 2, irc_msg_topic },		 /* TOPIC command		*/
@@ -264,6 +265,7 @@ static struct _irc_user_cmd {
 	{ "raw", "*", irc_cmd_quote, N_("raw [...]:  Send a raw command to the server.") },
 	{ "realname", ":", irc_cmd_setname, N_("realname &lt;name&gt;:  Set your real name (gecos).") },
 	{ "remove", "n:", irc_cmd_remove, N_("remove &lt;nick&gt; [message]:  Remove someone from a room. You must be a channel operator to do this.") },
+	{ "rename", "cc:", irc_cmd_rename, N_("rename [oldchannel] &lt;newchannel&gt; [reason]:  Rename a channel.") },
 	{ "setname", ":", irc_cmd_setname, N_("setname &lt;name&gt;:  Set your real name (gecos).") },
 	{ "stats", ":", irc_cmd_stats, N_("stats &lt;query&gt; [server]:  Query server performance and statistics.") },
 	{ "time", "", irc_cmd_time, N_("time:  Displays the current local time at the IRC server.") },
