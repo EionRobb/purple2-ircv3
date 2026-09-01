@@ -190,6 +190,8 @@ struct irc_conn {
 	gboolean cap_multiline;
 	gboolean cap_setname;
 	gboolean cap_channel_rename;
+	gboolean cap_multi_prefix;
+	gboolean cap_userhost_in_names;
 	guint multiline_max_bytes;
 	guint multiline_max_lines;
 	GHashTable *active_batches;

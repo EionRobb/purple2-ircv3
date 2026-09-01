@@ -821,8 +821,6 @@ irc_msg_who(struct irc_conn *irc, const char *name, const char *from, char **arg
 		PurpleConvChatBuddy *cb;
 
 		char *cur, *userhost, *realname;
-
-		PurpleConvChatBuddyFlags flags;
 		GList *keys = NULL, *values = NULL;
 
 		if (args[6][0] == 'G') {
@@ -869,13 +867,21 @@ irc_msg_who(struct irc_conn *irc, const char *name, const char *from, char **arg
 		g_free(userhost);
 		g_free(realname);
 
-		flags = cb->flags;
-
-		if (args[6][0] == 'G' && !(flags & PURPLE_CBFLAGS_AWAY)) {
-			purple_conv_chat_user_set_flags(chat, cb->name, flags | PURPLE_CBFLAGS_AWAY);
-		} else if (args[6][0] == 'H' && (flags & PURPLE_CBFLAGS_AWAY)) {
-			purple_conv_chat_user_set_flags(chat, cb->name, flags & ~PURPLE_CBFLAGS_AWAY);
+		PurpleConvChatBuddyFlags chan_flags = (cb->flags & PURPLE_CBFLAGS_TYPING);
+		const char *p;
+		for (p = args[6]; *p; p++) {
+			if (*p == '@')
+				chan_flags |= PURPLE_CBFLAGS_OP;
+			else if (*p == '%')
+				chan_flags |= PURPLE_CBFLAGS_HALFOP;
+			else if (*p == '+')
+				chan_flags |= PURPLE_CBFLAGS_VOICE;
+			else if (*p == '~' || *p == '&')
+				chan_flags |= PURPLE_CBFLAGS_FOUNDER;
 		}
+		if (args[6][0] == 'G')
+			chan_flags |= PURPLE_CBFLAGS_AWAY;
+		purple_conv_chat_user_set_flags(chat, cb->name, chan_flags);
 	}
 }
 
@@ -911,8 +917,6 @@ irc_msg_whox(struct irc_conn *irc, const char *name, const char *from, char **ar
 		chat = PURPLE_CONV_CHAT(conv);
 		cb = purple_conv_chat_cb_find(chat, nick);
 		if (cb) {
-			PurpleConvChatBuddyFlags flags = cb->flags;
-
 			keys = g_list_prepend(keys, "userhost");
 			values = g_list_prepend(values, userhost);
 
@@ -926,11 +930,21 @@ irc_msg_whox(struct irc_conn *irc, const char *name, const char *from, char **ar
 
 			purple_conv_chat_cb_set_attributes(chat, cb, keys, values);
 
-			if (flags_str[0] == 'G' && !(flags & PURPLE_CBFLAGS_AWAY)) {
-				purple_conv_chat_user_set_flags(chat, cb->name, flags | PURPLE_CBFLAGS_AWAY);
-			} else if (flags_str[0] == 'H' && (flags & PURPLE_CBFLAGS_AWAY)) {
-				purple_conv_chat_user_set_flags(chat, cb->name, flags & ~PURPLE_CBFLAGS_AWAY);
+			PurpleConvChatBuddyFlags chan_flags = (cb->flags & PURPLE_CBFLAGS_TYPING);
+			const char *p;
+			for (p = flags_str; *p; p++) {
+				if (*p == '@')
+					chan_flags |= PURPLE_CBFLAGS_OP;
+				else if (*p == '%')
+					chan_flags |= PURPLE_CBFLAGS_HALFOP;
+				else if (*p == '+')
+					chan_flags |= PURPLE_CBFLAGS_VOICE;
+				else if (*p == '~' || *p == '&')
+					chan_flags |= PURPLE_CBFLAGS_FOUNDER;
 			}
+			if (flags_str[0] == 'G')
+				chan_flags |= PURPLE_CBFLAGS_AWAY;
+			purple_conv_chat_user_set_flags(chat, cb->name, chan_flags);
 
 			g_list_free(keys);
 			g_list_free(values);
@@ -1087,7 +1101,7 @@ irc_msg_unknown(struct irc_conn *irc, const char *name, const char *from, char *
 void
 irc_msg_names(struct irc_conn *irc, const char *name, const char *from, char **args)
 {
-	char *names, *cur, *end, *tmp, *msg;
+	char *names, *cur, *end, *msg;
 	PurpleConversation *convo;
 
 	if (purple_strequal(name, "366")) {
@@ -1111,44 +1125,79 @@ irc_msg_names(struct irc_conn *irc, const char *name, const char *from, char **a
 		} else if (cur != NULL) {
 			GList *users = NULL;
 			GList *flags = NULL;
+			GList *userhosts = NULL;
 
 			while (*cur) {
 				PurpleConvChatBuddyFlags f = PURPLE_CBFLAGS_NONE;
+				char *userhost = NULL;
+				char *nick = NULL;
+				char *token;
+				char *excl;
+
 				end = strchr(cur, ' ');
 				if (!end)
 					end = cur + strlen(cur);
-				if (*cur == '@') {
-					f = PURPLE_CBFLAGS_OP;
-					cur++;
-				} else if (*cur == '%') {
-					f = PURPLE_CBFLAGS_HALFOP;
-					cur++;
-				} else if (*cur == '+') {
-					f = PURPLE_CBFLAGS_VOICE;
-					cur++;
-				} else if (irc->mode_chars && strchr(irc->mode_chars, *cur)) {
-					if (*cur == '~')
-						f = PURPLE_CBFLAGS_FOUNDER;
-					cur++;
+
+				while (cur < end) {
+					if (*cur == '@') {
+						f |= PURPLE_CBFLAGS_OP;
+						cur++;
+					} else if (*cur == '%') {
+						f |= PURPLE_CBFLAGS_HALFOP;
+						cur++;
+					} else if (*cur == '+') {
+						f |= PURPLE_CBFLAGS_VOICE;
+						cur++;
+					} else if (*cur == '~' || *cur == '&') {
+						f |= PURPLE_CBFLAGS_FOUNDER;
+						cur++;
+					} else if (irc->mode_chars && strchr(irc->mode_chars, *cur)) {
+						cur++;
+					} else {
+						break;
+					}
 				}
-				tmp = g_strndup(cur, end - cur);
-				users = g_list_prepend(users, tmp);
+
+				token = g_strndup(cur, end - cur);
+				excl = strchr(token, '!');
+				if (excl) {
+					nick = g_strndup(token, excl - token);
+					userhost = g_strdup(excl + 1);
+				} else {
+					nick = g_strdup(token);
+				}
+				g_free(token);
+
+				users = g_list_prepend(users, nick);
 				flags = g_list_prepend(flags, GINT_TO_POINTER(f));
+				userhosts = g_list_prepend(userhosts, userhost);
+
 				cur = end;
 				if (*cur)
 					cur++;
 			}
 
 			if (users != NULL) {
-				GList *l;
+				GList *l, *uh;
 
 				purple_conv_chat_add_users(PURPLE_CONV_CHAT(convo), users, NULL, flags, FALSE);
 
-				for (l = users; l != NULL; l = l->next)
+				for (l = users, uh = userhosts; l != NULL && uh != NULL; l = l->next, uh = uh->next) {
+					const char *user = (const char *) l->data;
+					const char *uh_str = (const char *) uh->data;
+					if (uh_str && *uh_str) {
+						PurpleConvChatBuddy *cb = purple_conv_chat_cb_find(PURPLE_CONV_CHAT(convo), user);
+						if (cb) {
+							purple_conv_chat_cb_set_attribute(PURPLE_CONV_CHAT(convo), cb, "userhost", uh_str);
+						}
+					}
 					g_free(l->data);
+					g_free(uh->data);
+				}
 
 				g_list_free(users);
 				g_list_free(flags);
+				g_list_free(userhosts);
 			}
 
 			purple_conversation_set_data(convo, IRC_NAMES_FLAG, GINT_TO_POINTER(TRUE));
@@ -2887,6 +2936,10 @@ irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **arg
 				g_string_append(req, "setname ");
 			} else if (strcmp(cap_array[i], "draft/channel-rename") == 0 || strcmp(cap_array[i], "channel-rename") == 0) {
 				g_string_append_printf(req, "%s ", cap_array[i]);
+			} else if (strcmp(cap_array[i], "multi-prefix") == 0) {
+				g_string_append(req, "multi-prefix ");
+			} else if (strcmp(cap_array[i], "userhost-in-names") == 0) {
+				g_string_append(req, "userhost-in-names ");
 			} else if (strcmp(cap_array[i], "extended-monitor") == 0 || strcmp(cap_array[i], "draft/extended-monitor") == 0) {
 				g_string_append(req, "extended-monitor ");
 			} else if (g_str_has_prefix(cap_array[i], "draft/multiline") || g_str_has_prefix(cap_array[i], "multiline")) {
@@ -2960,6 +3013,10 @@ irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **arg
 				irc->cap_setname = FALSE;
 			} else if (strcmp(cap_array[i], "draft/channel-rename") == 0 || strcmp(cap_array[i], "channel-rename") == 0) {
 				irc->cap_channel_rename = FALSE;
+			} else if (strcmp(cap_array[i], "multi-prefix") == 0) {
+				irc->cap_multi_prefix = FALSE;
+			} else if (strcmp(cap_array[i], "userhost-in-names") == 0) {
+				irc->cap_userhost_in_names = FALSE;
 			} else if (strcmp(cap_array[i], "extended-monitor") == 0 || strcmp(cap_array[i], "draft/extended-monitor") == 0) {
 				irc->cap_extended_monitor = FALSE;
 			} else if (g_str_has_prefix(cap_array[i], "draft/multiline") || g_str_has_prefix(cap_array[i], "multiline")) {
@@ -3000,6 +3057,10 @@ irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **arg
 				irc->cap_setname = TRUE;
 			} else if (strcmp(cap_array[i], "draft/channel-rename") == 0 || strcmp(cap_array[i], "channel-rename") == 0) {
 				irc->cap_channel_rename = TRUE;
+			} else if (strcmp(cap_array[i], "multi-prefix") == 0) {
+				irc->cap_multi_prefix = TRUE;
+			} else if (strcmp(cap_array[i], "userhost-in-names") == 0) {
+				irc->cap_userhost_in_names = TRUE;
 			} else if (strcmp(cap_array[i], "extended-monitor") == 0 || strcmp(cap_array[i], "draft/extended-monitor") == 0) {
 				irc->cap_extended_monitor = TRUE;
 			} else if (g_str_has_prefix(cap_array[i], "draft/multiline") || g_str_has_prefix(cap_array[i], "multiline")) {
@@ -3045,6 +3106,10 @@ irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **arg
 				irc->cap_setname = TRUE;
 			} else if (strcmp(cap_array[i], "draft/channel-rename") == 0 || strcmp(cap_array[i], "channel-rename") == 0) {
 				irc->cap_channel_rename = TRUE;
+			} else if (strcmp(cap_array[i], "multi-prefix") == 0) {
+				irc->cap_multi_prefix = TRUE;
+			} else if (strcmp(cap_array[i], "userhost-in-names") == 0) {
+				irc->cap_userhost_in_names = TRUE;
 			} else if (strcmp(cap_array[i], "extended-monitor") == 0 || strcmp(cap_array[i], "draft/extended-monitor") == 0) {
 				irc->cap_extended_monitor = TRUE;
 			} else if (g_str_has_prefix(cap_array[i], "draft/multiline") || g_str_has_prefix(cap_array[i], "multiline")) {

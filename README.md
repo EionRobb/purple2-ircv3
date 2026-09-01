@@ -30,11 +30,13 @@ sudo make install
 * [`message-tags`](https://ircv3.net/specs/extensions/message-tags) - typing notifications
 * [`metadata-2`](https://ircv3.net/specs/extensions/metadata) - user avatars / buddy icons
 * [`monitor`](https://ircv3.net/specs/extensions/monitor) - server-side buddy list presence monitoring
+* [`multi-prefix`](https://ircv3.net/specs/extensions/multi-prefix) - requests all user channel status prefixes (e.g. `@+` for op+voice) in NAMES and WHO replies
 * [`multiline`](https://ircv3.net/specs/extensions/multiline) - supports multiline message batches with embedded newlines (draft)
 * [`sasl`](https://ircv3.net/specs/extensions/sasl-3.2) - SASL authentication support
 * [`server-time`](https://ircv3.net/specs/extensions/server-time) - shows correct message timestamp of relayed messages
 * [`setname`](https://ircv3.net/specs/extensions/setname) - dynamic realname changes without reconnecting
 * [`sts`](https://ircv3.net/specs/extensions/sts) - Strict Transport Security policy enforcement
+* [`userhost-in-names`](https://ircv3.net/specs/extensions/userhost-in-names) - includes user hostmasks in NAMES list replies upon channel join
 * [`utf8-only`](https://ircv3.net/specs/extensions/utf8-only) - UTF-8 encoding enforcement
 * [`whox`](https://ircv3.net/specs/extensions/whox) - extended WHO queries for efficient user status/account retrieval
 
