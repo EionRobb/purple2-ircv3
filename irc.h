@@ -275,6 +275,8 @@ char *
 irc_parse_ctcp(struct irc_conn *irc, const char *from, const char *to, const char *msg, int notice);
 char *
 irc_format(struct irc_conn *irc, const char *format, ...);
+void
+irc_whois_free(struct irc_conn *irc);
 
 void
 irc_msg_default(struct irc_conn *irc, const char *name, const char *from, char **args);

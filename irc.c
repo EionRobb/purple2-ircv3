@@ -951,6 +951,10 @@ irc_close(PurpleConnection *gc)
 		g_hash_table_destroy(irc->active_batches);
 	if (irc->motd)
 		g_string_free(irc->motd, TRUE);
+	if (irc->names)
+		g_string_free(irc->names, TRUE);
+	g_free(irc->current_tags);
+	irc_whois_free(irc);
 	g_free(irc->server);
 
 	// Don't use g_queue_free_full() since that's too-new for Windows
@@ -1831,7 +1835,7 @@ irc_set_last_msg_time(struct irc_conn *irc, const char *target, const char *iso_
 		return;
 
 	target_lc = g_utf8_strdown(target, -1);
-	g_hash_table_insert(irc->last_msg_times, g_strdup(target_lc), g_strdup(iso_timestamp));
+	g_hash_table_replace(irc->last_msg_times, g_strdup(target_lc), g_strdup(iso_timestamp));
 
 	setting_key = g_strdup_printf("chathistory_last_%s", target_lc);
 	purple_account_set_string(irc->account, setting_key, iso_timestamp);
@@ -1855,7 +1859,7 @@ irc_get_last_msg_time(struct irc_conn *irc, const char *target)
 		setting_key = g_strdup_printf("chathistory_last_%s", target_lc);
 		val = purple_account_get_string(irc->account, setting_key, NULL);
 		if (val) {
-			g_hash_table_insert(irc->last_msg_times, g_strdup(target_lc), g_strdup(val));
+			g_hash_table_replace(irc->last_msg_times, g_strdup(target_lc), g_strdup(val));
 			val = g_hash_table_lookup(irc->last_msg_times, target_lc);
 		}
 		g_free(setting_key);

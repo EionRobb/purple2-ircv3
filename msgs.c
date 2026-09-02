@@ -828,7 +828,30 @@ irc_msg_endwhois(struct irc_conn *irc, const char *name, const char *from, char 
 	purple_notify_userinfo(gc, irc->whois.nick, user_info, NULL, NULL);
 	purple_notify_user_info_destroy(user_info);
 
+	irc_whois_free(irc);
+}
+
+void
+irc_whois_free(struct irc_conn *irc)
+{
+	if (!irc)
+		return;
 	g_free(irc->whois.nick);
+	g_free(irc->whois.away);
+	g_free(irc->whois.host);
+	g_free(irc->whois.server);
+	g_free(irc->whois.serverinfo);
+	g_free(irc->whois.real);
+	g_free(irc->whois.ident);
+	g_free(irc->whois.login);
+	g_free(irc->whois.connected_from);
+	g_free(irc->whois.actually);
+	g_free(irc->whois.admin);
+	g_free(irc->whois.secure);
+	g_free(irc->whois.certfp);
+	g_free(irc->whois.modes);
+	if (irc->whois.channels)
+		g_string_free(irc->whois.channels, TRUE);
 	memset(&irc->whois, 0, sizeof(irc->whois));
 }
 
@@ -2254,6 +2277,7 @@ irc_msg_handle_privmsg(struct irc_conn *irc, const char *name, const char *from,
 
 						g_strfreev(tags);
 						g_free(nick);
+						g_free(msg);
 						return;
 					}
 				}
@@ -3466,6 +3490,7 @@ irc_msg_metadata(struct irc_conn *irc, const char *name, const char *from, char 
 		if (irc_ischannel(target)) {
 			PurpleConversation *convo = purple_find_conversation_with_account(PURPLE_CONV_TYPE_CHAT, target, irc->account);
 			if (convo) {
+				g_free(purple_conversation_get_data(convo, "homepage"));
 				purple_conversation_set_data(convo, "homepage", (value && *value) ? g_strdup(value) : NULL);
 			}
 		} else {
@@ -3504,6 +3529,7 @@ irc_msg_metadata(struct irc_conn *irc, const char *name, const char *from, char 
 		if (irc_ischannel(target)) {
 			PurpleConversation *convo = purple_find_conversation_with_account(PURPLE_CONV_TYPE_CHAT, target, irc->account);
 			if (convo) {
+				g_free(purple_conversation_get_data(convo, "color"));
 				purple_conversation_set_data(convo, "color", (value && *value) ? g_strdup(value) : NULL);
 			}
 		} else {
