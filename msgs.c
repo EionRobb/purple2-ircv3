@@ -1137,7 +1137,8 @@ irc_msg_unknown(struct irc_conn *irc, const char *name, const char *from, char *
 	g_return_if_fail(gc);
 
 	buf = g_strdup_printf(_("Unknown message '%s'"), args[1]);
-	purple_notify_error(gc, _("Unknown message"), buf, _("The IRC server received a message it did not understand."));
+	//purple_notify_error(gc, _("Unknown message"), buf, _("The IRC server received a message it did not understand."));
+	purple_debug_error("irc", buf);
 	g_free(buf);
 }
 

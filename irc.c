@@ -703,7 +703,7 @@ irc_login(PurpleAccount *account)
 		  purple_conversations_get_handle(), "chat-conversation-typing", purple_connection_get_prpl(gc), PURPLE_CALLBACK(irc_conv_send_typing), NULL);
 	}
 
-	if (!purple_account_get_bool(account, "ssl", FALSE)) {
+	if (!purple_account_get_bool(account, "ssl", TRUE)) {
 		time_t sts_expiry = (time_t) purple_account_get_int(account, "sts_expiry", 0);
 		if (sts_expiry > time(NULL)) {
 			int sts_port = purple_account_get_int(account, "sts_port", IRC_DEFAULT_SSL_PORT);
@@ -714,7 +714,7 @@ irc_login(PurpleAccount *account)
 		}
 	}
 
-	if (purple_account_get_bool(account, "ssl", FALSE)) {
+	if (purple_account_get_bool(account, "ssl", TRUE)) {
 		if (purple_ssl_is_supported()) {
 			int ssl_port = purple_account_get_int(account, "port", IRC_DEFAULT_SSL_PORT);
 			if (irc->tls_cert_path && *irc->tls_cert_path) {
@@ -740,7 +740,7 @@ irc_login(PurpleAccount *account)
 
 	if (!irc->gsc) {
 
-		if (purple_proxy_connect(gc, account, irc->server, purple_account_get_int(account, "port", IRC_DEFAULT_PORT), irc_login_cb, gc) == NULL) {
+		if (purple_proxy_connect(gc, account, irc->server, purple_account_get_int(account, "port", IRC_DEFAULT_SSL_PORT), irc_login_cb, gc) == NULL) {
 			purple_connection_error_reason(gc,
 										   PURPLE_CONNECTION_ERROR_NETWORK_ERROR,
 										   _("Unable to connect"));
@@ -1565,7 +1565,7 @@ irc_uri_handler(const char *proto, const char *cmd, GHashTable *params)
 			if (port && *port)
 				purple_account_set_int(acct, "port", atoi(port));
 			else
-				purple_account_set_int(acct, "port", secure ? 994 : 6667);
+				purple_account_set_int(acct, "port", secure ? IRC_DEFAULT_SSL_PORT : IRC_DEFAULT_PORT);
 
 			purple_account_connect(acct);
 		}
@@ -1749,7 +1749,7 @@ _init_plugin(PurplePlugin *plugin)
 	split = purple_account_user_split_new(_("Server"), IRC_DEFAULT_SERVER, '@');
 	prpl_info->user_splits = g_list_append(prpl_info->user_splits, split);
 
-	option = purple_account_option_int_new(_("Port"), "port", IRC_DEFAULT_PORT);
+	option = purple_account_option_int_new(_("Port"), "port", IRC_DEFAULT_SSL_PORT);
 	prpl_info->protocol_options = g_list_append(prpl_info->protocol_options, option);
 
 	option = purple_account_option_string_new(_("Encodings"), "encoding", IRC_DEFAULT_CHARSET);
@@ -1788,7 +1788,7 @@ _init_plugin(PurplePlugin *plugin)
 	option = purple_account_option_bool_new(_("Auto-rejoin on kick"), "autorejoin", FALSE);
 	prpl_info->protocol_options = g_list_append(prpl_info->protocol_options, option);
 
-	option = purple_account_option_bool_new(_("Use SSL"), "ssl", FALSE);
+	option = purple_account_option_bool_new(_("Use SSL"), "ssl", TRUE);
 	prpl_info->protocol_options = g_list_append(prpl_info->protocol_options, option);
 
 #ifdef HAVE_CYRUS_SASL
