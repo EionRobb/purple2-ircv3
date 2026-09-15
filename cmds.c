@@ -1115,6 +1115,8 @@ irc_cmd_whois(struct irc_conn *irc, const char *cmd, const char *target, const c
 	if (!args || !args[0])
 		return 0;
 
+	irc_whois_free(irc);
+
 	if (args[1]) {
 		buf = irc_format(irc, "vvn", "WHOIS", args[0], args[1]);
 		irc->whois.nick = g_strdup(args[1]);
@@ -1136,6 +1138,8 @@ irc_cmd_whowas(struct irc_conn *irc, const char *cmd, const char *target, const 
 
 	if (!args || !args[0])
 		return 0;
+
+	irc_whois_free(irc);
 
 	buf = irc_format(irc, "vn", "WHOWAS", args[0]);
 
