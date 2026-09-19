@@ -113,6 +113,7 @@ irc_connected(struct irc_conn *irc, const char *nick)
 
 	purple_connection_set_display_name(gc, nick);
 	purple_connection_set_state(gc, PURPLE_CONNECTED);
+	purple_debug_info("irc", "Successfully registered and connected as %s\n", nick);
 	account = purple_connection_get_account(gc);
 
 	/* Set or unset initial user modes on connect */
@@ -2295,19 +2296,27 @@ irc_msg_handle_privmsg(struct irc_conn *irc, const char *name, const char *from,
 		purple_prpl_got_attention(gc, nick, 0);
 	}
 
-	if (notice && !irc_ischannel(to)) {
+	if (notice && (g_strcmp0(to, "AUTH") == 0 || !irc_ischannel(to))) {
 		/* Filter out server connection cruft and boilerplate notices */
-		if (g_str_has_prefix(rawmsg, "*** Found your hostname") ||
-			g_str_has_prefix(rawmsg, "*** Looking up your hostname") ||
-			g_str_has_prefix(rawmsg, "*** Checking ident") ||
-			g_str_has_prefix(rawmsg, "*** No ident response") ||
-			g_str_has_prefix(rawmsg, "*** If you are having problems connecting due to ping timeouts") ||
-			g_str_has_prefix(rawmsg, "*** Spoofing your IP") ||
+		if (g_ascii_strncasecmp(rawmsg, "*** Found your hostname", 23) == 0 ||
+			g_ascii_strncasecmp(rawmsg, "*** Looking up your hostname", 28) == 0 ||
+			g_ascii_strncasecmp(rawmsg, "*** Checking ident", 18) == 0 ||
+			g_ascii_strncasecmp(rawmsg, "*** No ident response", 21) == 0 ||
+			g_ascii_strncasecmp(rawmsg, "*** Couldn't look up your hostname", 34) == 0 ||
+			g_ascii_strncasecmp(rawmsg, "*** If you are having problems connecting due to ping timeouts", 62) == 0 ||
+			g_ascii_strncasecmp(rawmsg, "*** Spoofing your IP", 20) == 0 ||
 			g_str_has_prefix(rawmsg, "[freenode-info]") ||
 			(!purple_utf8_strcasecmp(nick, "frigg") && g_str_has_prefix(rawmsg, "Received CTCP")) ||
 			(!purple_utf8_strcasecmp(nick, "MemoServ") && g_str_has_prefix(rawmsg, "You have no new memos")) ||
 			(!purple_utf8_strcasecmp(nick, "ChanServ") && g_str_has_prefix(rawmsg, "You do not have channel operator access to")) ||
 			(!purple_utf8_strcasecmp(nick, "Q") && (g_str_has_prefix(rawmsg, "Remember: NO-ONE from QuakeNet") || g_str_has_prefix(rawmsg, "Lastly, When you do recover your password")))) {
+			g_free(msg);
+			g_free(nick);
+			return;
+		}
+
+		if (g_strcmp0(to, "AUTH") == 0) {
+			purple_debug_info("irc", "Server notice to AUTH: %s\n", rawmsg);
 			g_free(msg);
 			g_free(nick);
 			return;
@@ -2951,6 +2960,8 @@ irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **arg
 		int i;
 		GString *req = g_string_new("");
 
+		purple_debug_info("irc", "Server advertised capabilities: %s\n", caps);
+
 		cap_array = g_strsplit(caps, " ", -1);
 		for (i = 0; cap_array[i] != NULL; i++) {
 			if (strcmp(cap_array[i], "message-tags") == 0) {
@@ -3026,11 +3037,18 @@ irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **arg
 		}
 		g_strfreev(cap_array);
 
+		/* Strip trailing whitespace so IRC servers do not see an empty capability name */
+		while (req->len > 0 && req->str[req->len - 1] == ' ') {
+			g_string_truncate(req, req->len - 1);
+		}
+
 		if (req->len > 0) {
+			purple_debug_info("irc", "Requesting capabilities: %s\n", req->str);
 			char *buf = irc_format(irc, "vv:", "CAP", "REQ", req->str);
 			irc_priority_send(irc, buf);
 			g_free(buf);
 		} else {
+			purple_debug_info("irc", "No capabilities to request, ending CAP negotiation\n");
 			char *buf = irc_format(irc, "vv", "CAP", "END");
 			irc_priority_send(irc, buf);
 			g_free(buf);
@@ -3139,6 +3157,8 @@ irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **arg
 		gchar **cap_array = g_strsplit(caps, " ", -1);
 		int i;
 		gboolean sasl_acked = FALSE;
+
+		purple_debug_info("irc", "Capabilities acknowledged by server: %s\n", caps);
 
 		for (i = 0; cap_array[i] != NULL; i++) {
 			if (strcmp(cap_array[i], "message-tags") == 0) {
@@ -3304,6 +3324,7 @@ irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **arg
 			}
 		} else if (irc->sasl_conn == NULL) {
 #endif
+			purple_debug_info("irc", "Ending capability negotiation (CAP END)\n");
 			/* If SASL wasn't requested/acked and not already authenticating, end CAP */
 			char *buf = irc_format(irc, "vv", "CAP", "END");
 			irc_priority_send(irc, buf);
@@ -3311,6 +3332,37 @@ irc_msg_cap(struct irc_conn *irc, const char *name, const char *from, char **arg
 #ifdef HAVE_CYRUS_SASL
 		}
 #endif
+	} else if (strncmp(subcmd, "NAK", 3) == 0) {
+		purple_debug_warning("irc", "Capabilities rejected by server: %s\n", caps);
+
+#ifdef HAVE_CYRUS_SASL
+		gchar **cap_array = g_strsplit(caps, " ", -1);
+		int i;
+		gboolean sasl_naked = FALSE;
+
+		for (i = 0; cap_array[i] != NULL; i++) {
+			if (strcmp(cap_array[i], "sasl") == 0) {
+				sasl_naked = TRUE;
+				break;
+			}
+		}
+		g_strfreev(cap_array);
+
+		if (sasl_naked && purple_account_get_bool(irc->account, "sasl", FALSE)) {
+			const char *tmp = _("SASL authentication failed: Server does not support SASL authentication.");
+			purple_connection_error_reason(gc, PURPLE_CONNECTION_ERROR_AUTHENTICATION_IMPOSSIBLE, tmp);
+			irc_sasl_finish(irc);
+			return;
+		}
+#endif
+
+		/* End CAP negotiation so registration can proceed */
+		if (irc->sasl_conn == NULL) {
+			purple_debug_info("irc", "Ending capability negotiation after NAK (CAP END)\n");
+			char *buf = irc_format(irc, "vv", "CAP", "END");
+			irc_priority_send(irc, buf);
+			g_free(buf);
+		}
 	}
 }
 

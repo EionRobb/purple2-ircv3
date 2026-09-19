@@ -765,6 +765,7 @@ do_login(PurpleConnection *gc)
 	  FALSE;
 #endif
 
+	purple_debug_info("irc", "Beginning IRCv3 capability negotiation (CAP LS 302)\n");
 	buf = irc_format(irc, "vv", "CAP", "LS 302");
 	if (irc_priority_send(irc, buf) < 0) {
 		g_free(buf);
@@ -774,9 +775,10 @@ do_login(PurpleConnection *gc)
 
 	if (pass && *pass) {
 #ifdef HAVE_CYRUS_SASL
-		if (use_sasl)
+		if (use_sasl) {
+			purple_debug_info("irc", "Requesting SASL capability (CAP REQ :sasl)\n");
 			buf = irc_format(irc, "vv:", "CAP", "REQ", "sasl");
-		else /* intended to fall through */
+		} else /* intended to fall through */
 #endif
 			buf = irc_format(irc, "v:", "PASS", pass);
 		if (irc_priority_send(irc, buf) < 0) {

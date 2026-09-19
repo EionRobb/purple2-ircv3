@@ -18,6 +18,7 @@ sudo make install
 * [`away-notify`](https://ircv3.net/specs/extensions/away-notify) - instantly notifies when users go away or return
 * [`batch`](https://ircv3.net/specs/extensions/batch) - groups related server messages together
 * [`bot-mode`](https://ircv3.net/specs/extensions/bot-mode) - marks bot users and displays bot emblems on the buddy list
+* [`capability-negotiation`](https://ircv3.net/specs/core/capability-negotiation) - IRCv3 capability negotiation with NAK rejection handling and robust registration completion
 * [`channel-rename`](https://ircv3.net/specs/extensions/channel-rename) - seamlessly handles dynamic channel name changes (`RENAME`) without parting and rejoining (draft)
 * [`chathistory`](https://ircv3.net/specs/extensions/chathistory) - requests message history / backscroll from servers and bouncers
 * [`chghost`](https://ircv3.net/specs/extensions/chghost) - updates user hostnames and idents without synthetic reconnects

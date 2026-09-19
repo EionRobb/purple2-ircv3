@@ -1097,6 +1097,7 @@ irc_parse_msg(struct irc_conn *irc, char *input)
 		g_free(msg);
 		return;
 	} else if (!strncmp(input, "ERROR ", 6)) {
+		purple_debug_info("irc", "Received ERROR from server: %s\n", input);
 		if (g_utf8_validate(input, -1, NULL)) {
 			char *tmp = g_strdup_printf("%s\n%s", _("Disconnected."), input);
 			purple_connection_error_reason(gc,
