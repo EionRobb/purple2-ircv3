@@ -277,6 +277,7 @@ static struct _irc_user_cmd {
 	{ "unban", ":", irc_cmd_unban, N_("unban &lt;nick|mask&gt;:  Remove a ban from the current channel.") },
 	{ "unmute", ":", irc_cmd_unquiet, N_("unmute &lt;nick|mask&gt;:  Unmute a user in the current channel.") },
 	{ "unquiet", ":", irc_cmd_unquiet, N_("unquiet &lt;nick|mask&gt;:  Remove a quiet from the current channel.") },
+	{ "upload", ":", irc_cmd_upload, N_("upload &lt;file&gt; [target]:  Upload a file via HTTP file host and share the link.") },
 	{ "version", ":", irc_cmd_ctcp_version, N_("version [nick]:  send CTCP VERSION request to a user") },
 	{ "voice", ":", irc_cmd_op, N_("voice &lt;nick1&gt; [nick2] ...:  Grant channel voice status to someone. You must be a channel operator to do this.") },
 	{ "wallops", ":", irc_cmd_wallops, N_("wallops &lt;message&gt;:  If you don't know what this is, you probably can't use it.") },

@@ -22,6 +22,7 @@
  */
 
 #include "irc.h"
+#include "filehost.h"
 
 /***************************************************************************
  * Functions related to receiving files via DCC SEND
@@ -414,21 +415,35 @@ PurpleXfer *
 irc_dccsend_new_xfer(PurpleConnection *gc, const char *who)
 {
 	PurpleXfer *xfer;
-	struct irc_xfer_send_data *xd;
+	struct irc_conn *irc = gc ? gc->proto_data : NULL;
+	gboolean use_filehost = FALSE;
+
+	if (irc && irc->filehost_url != NULL) {
+		if (irc_ischannel(who) || purple_account_get_bool(purple_connection_get_account(gc), "prefer_filehost", TRUE)) {
+			use_filehost = TRUE;
+		}
+	}
 
 	/* Build the file transfer handle */
 	xfer = purple_xfer_new(purple_connection_get_account(gc), PURPLE_XFER_SEND, who);
 	if (xfer) {
-		xd = g_new0(struct irc_xfer_send_data, 1);
-		xd->fd = -1;
-		xfer->data = xd;
+		if (use_filehost) {
+			purple_xfer_set_init_fnc(xfer, irc_filehost_send_init);
+			purple_xfer_set_end_fnc(xfer, irc_filehost_destroy);
+			purple_xfer_set_request_denied_fnc(xfer, irc_filehost_destroy);
+			purple_xfer_set_cancel_send_fnc(xfer, irc_filehost_destroy);
+		} else {
+			struct irc_xfer_send_data *xd = g_new0(struct irc_xfer_send_data, 1);
+			xd->fd = -1;
+			xfer->data = xd;
 
-		/* Setup our I/O op functions */
-		purple_xfer_set_init_fnc(xfer, irc_dccsend_send_init);
-		purple_xfer_set_write_fnc(xfer, irc_dccsend_send_write);
-		purple_xfer_set_end_fnc(xfer, irc_dccsend_send_destroy);
-		purple_xfer_set_request_denied_fnc(xfer, irc_dccsend_send_destroy);
-		purple_xfer_set_cancel_send_fnc(xfer, irc_dccsend_send_destroy);
+			/* Setup our I/O op functions */
+			purple_xfer_set_init_fnc(xfer, irc_dccsend_send_init);
+			purple_xfer_set_write_fnc(xfer, irc_dccsend_send_write);
+			purple_xfer_set_end_fnc(xfer, irc_dccsend_send_destroy);
+			purple_xfer_set_request_denied_fnc(xfer, irc_dccsend_send_destroy);
+			purple_xfer_set_cancel_send_fnc(xfer, irc_dccsend_send_destroy);
+		}
 	}
 
 	return xfer;

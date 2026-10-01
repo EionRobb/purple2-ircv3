@@ -24,6 +24,7 @@
  */
 
 #include "irc.h"
+#include "filehost.h"
 #include <time.h>
 
 #define PING_TIMEOUT 60
@@ -972,6 +973,8 @@ irc_close(PurpleConnection *gc)
 	g_free(irc->mode_chars);
 	g_free(irc->reqnick);
 	g_free(irc->tls_cert_path);
+	g_free(irc->filehost_url);
+	g_free(irc->sasl_auth_mech);
 
 #ifdef HAVE_CYRUS_SASL
 	if (irc->sasl_conn) {
@@ -1744,9 +1747,12 @@ _init_plugin(PurplePlugin *plugin)
 	prpl_info->get_attention_types = irc_get_attention_types;
 	prpl_info->send_attention = irc_send_attention;
 	prpl_info->send_file = irc_dccsend_send_file;
+	prpl_info->can_receive_file = irc_can_receive_file;
 	prpl_info->new_xfer = irc_dccsend_new_xfer;
 	prpl_info->send_raw = irc_send_raw;
 	prpl_info->struct_size = sizeof(PurplePluginProtocolInfoExt);
+	prpl_info_ext->chat_can_receive_file = irc_chat_can_receive_file;
+	prpl_info_ext->chat_send_file = irc_chat_send_file;
 
 	split = purple_account_user_split_new(_("Server"), IRC_DEFAULT_SERVER, '@');
 	prpl_info->user_splits = g_list_append(prpl_info->user_splits, split);
@@ -1758,6 +1764,9 @@ _init_plugin(PurplePlugin *plugin)
 	prpl_info->protocol_options = g_list_append(prpl_info->protocol_options, option);
 
 	option = purple_account_option_bool_new(_("Auto-detect incoming UTF-8"), "autodetect_utf8", IRC_DEFAULT_AUTODETECT);
+	prpl_info->protocol_options = g_list_append(prpl_info->protocol_options, option);
+
+	option = purple_account_option_bool_new(_("Prefer HTTP filehost over DCC for transfers"), "prefer_filehost", TRUE);
 	prpl_info->protocol_options = g_list_append(prpl_info->protocol_options, option);
 
 	option = purple_account_option_string_new(_("Ident name"), "username", "");

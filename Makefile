@@ -78,6 +78,7 @@ C_FILES = \
 	cert.c \
 	cmds.c \
 	dcc_send.c \
+	filehost.c \
 	irc.c \
 	msgs.c \
 	parse.c 

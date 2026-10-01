@@ -26,6 +26,7 @@ sudo make install
 * [`event-playback`](https://ircv3.net/specs/extensions/event-playback) - historical playback of joins, parts, quits, kicks, modes, and topics in chathistory (draft)
 * [`extended-join`](https://ircv3.net/specs/extensions/extended-join) - includes account name and realname in JOIN notifications
 * [`extended-monitor`](https://ircv3.net/specs/extensions/extended-monitor) - extends MONITOR to push away, account, and host changes for monitored contacts
+* [`filehost`](https://github.com/ircv3/ircv3-specifications/pull/562) - HTTP file host ISUPPORT token (`draft/FILEHOST`, `soju.im/FILEHOST`) for uploading files via HTTP POST with SASL authentication and sharing links in channels or direct messages (draft)
 * [`invite-notify`](https://ircv3.net/specs/extensions/invite-notify) - notifies when someone has been invited to a channel
 * [`labeled-response`](https://ircv3.net/specs/extensions/labeled-response) - correlates sent commands with server responses to avoid repeating sent messages
 * [`message-tags`](https://ircv3.net/specs/extensions/message-tags) - typing notifications
@@ -48,7 +49,8 @@ sudo make install
 * **Comprehensive Slash Commands & Aliases**:
   * **Services**: Shortcuts for `/ns` (NickServ), `/cs` (ChanServ), `/ms` (MemoServ), `/os` (OperServ), `/hs` / `/hostserv` (HostServ), `/bs` / `/botserv` (BotServ), `/authserv`.
   * **Channel Moderation**: `/ban` and `/unban` (with automatic nickname-to-hostmask resolution), `/kb` / `/kickban` (ban mask and kick in one step), `/quiet` / `/mute`, `/unquiet` / `/unmute`, `/rename` (rename channel via IRCv3 RENAME), and `/cycle` / `/hop` (part and immediately rejoin active channel).
-  * **Server & Discovery**: `/help` (interactive IRC help `704`-`706`), `/who`, `/motd`, `/admin`, `/info`, `/stats`, `/lusers`, `/links`, `/avatar` (set or clear avatar URL), `/setname` / `/realname` (dynamically update realname), and `/raw` (alias for `/quote`).
+  * **Server & Discovery**: `/help` (interactive IRC help `704`-`706`), `/who`, `/motd`, `/admin`, `/info`, `/stats`, `/lusers`, `/links`, `/avatar` (set or clear avatar URL), `/setname` / `/realname` (dynamically update realname), `/upload` (upload file via HTTP filehost), and `/raw` (alias for `/quote`).
+* **File Transfer & HTTP File Hosting**: Integrated support for HTTP file hosting (`draft/FILEHOST`, `soju.im/FILEHOST`, `FILEHOST`) with automatic SASL `PLAIN` (`Basic`) or `OAUTHBEARER` (`Bearer`) authentication, enabling seamless file sharing to both channels and buddies with upload progress dialogs and automatic link posting, with fallback to direct DCC SEND.
 * **Attention / Nudges**: ASCII `\007` (BEL) integration with Pidgin's native Nudge/Attention API to shake/flash windows and play sound alerts on incoming nudges, as well as sending nudges via `/nudge` or the UI button.
 * **URI Handling**: Native `irc://` and `ircs://` protocol handler support for opening IRC links directly in Pidgin.
 * **Extended Text Formatting & Colors**: Bidirectional formatting support (aka MIRC colours) including bold, italics (`\x1D`), underline, strikethrough (`\x1E`), monospace (`\x11`), reverse video (`\x16`), 24-bit RGB hex colors (`\x04`), and extended 16-98 mIRC color palettes.

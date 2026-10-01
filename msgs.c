@@ -300,6 +300,36 @@ irc_msg_features(struct irc_conn *irc, const char *name, const char *from, char 
 		} else if (strcmp(features[i], "MONITOR") == 0) {
 			irc->monitor_supported = TRUE;
 			irc->monitor_limit = 0;
+		} else if (strncmp(features[i], "draft/FILEHOST=", 15) == 0 ||
+		           strncmp(features[i], "soju.im/FILEHOST=", 17) == 0 ||
+		           strncmp(features[i], "FILEHOST=", 9) == 0) {
+			const char *fh_val;
+			gboolean is_https, is_http;
+
+			if (strncmp(features[i], "draft/FILEHOST=", 15) == 0)
+				fh_val = features[i] + 15;
+			else if (strncmp(features[i], "soju.im/FILEHOST=", 17) == 0)
+				fh_val = features[i] + 17;
+			else
+				fh_val = features[i] + 9;
+
+			is_https = (purple_strcasestr(fh_val, "https://") == fh_val);
+			is_http = (purple_strcasestr(fh_val, "http://") == fh_val);
+
+			if (irc->gsc != NULL && !is_https) {
+				purple_debug_warning("irc", "Rejecting unencrypted FILEHOST URL over TLS connection: %s\n", fh_val);
+			} else if (is_https || is_http) {
+				g_free(irc->filehost_url);
+				irc->filehost_url = g_strdup(fh_val);
+				purple_debug_info("irc", "Discovered FILEHOST upload URL: %s\n", irc->filehost_url);
+			} else {
+				purple_debug_warning("irc", "Ignoring FILEHOST with unsupported scheme: %s\n", fh_val);
+			}
+		} else if (strcmp(features[i], "-draft/FILEHOST") == 0 ||
+		           strcmp(features[i], "-soju.im/FILEHOST") == 0 ||
+		           strcmp(features[i], "-FILEHOST") == 0) {
+			g_free(irc->filehost_url);
+			irc->filehost_url = NULL;
 		}
 	}
 
@@ -2761,6 +2791,13 @@ void
 irc_msg_authok(struct irc_conn *irc, const char *name, const char *from, char **args)
 {
 	char *buf;
+
+#ifdef HAVE_CYRUS_SASL
+	if (irc->current_mech) {
+		g_free(irc->sasl_auth_mech);
+		irc->sasl_auth_mech = g_strdup(irc->current_mech);
+	}
+#endif
 
 	sasl_dispose(&irc->sasl_conn);
 	irc->sasl_conn = NULL;

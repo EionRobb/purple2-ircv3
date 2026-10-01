@@ -1319,5 +1319,41 @@ irc_cmd_rename(struct irc_conn *irc, const char *cmd, const char *target, const 
 	return 0;
 }
 
+int
+irc_cmd_upload(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
+{
+	PurpleConnection *gc;
+	const char *dest;
+	const char *file;
+
+	if (!irc || !args || !args[0] || !*args[0])
+		return 0;
+
+	gc = purple_account_get_connection(irc->account);
+	if (!gc)
+		return 0;
+
+	if (!irc->filehost_url || !*irc->filehost_url) {
+		PurpleConversation *convo = purple_find_conversation_with_account(PURPLE_CONV_TYPE_ANY, target, irc->account);
+		if (convo) {
+			purple_conversation_write(convo, "", _("This server does not advertise an HTTP file host (FILEHOST)."),
+			                          PURPLE_MESSAGE_ERROR | PURPLE_MESSAGE_NO_LOG, time(NULL));
+		}
+		return 0;
+	}
+
+	file = args[0];
+	if (args[1] && *args[1])
+		dest = args[1];
+	else
+		dest = target;
+
+	if (!dest || !*dest)
+		return 0;
+
+	irc_dccsend_send_file(gc, dest, file);
+	return 0;
+}
+
 
 

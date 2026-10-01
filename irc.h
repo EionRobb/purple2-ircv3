@@ -214,6 +214,8 @@ struct irc_conn {
 	gboolean mech_works;
 	sasl_callback_t *sasl_cb;
 #endif
+	gchar *filehost_url;
+	gchar *sasl_auth_mech;
 };
 
 struct irc_buddy {
@@ -504,6 +506,8 @@ int
 irc_cmd_setname(struct irc_conn *irc, const char *cmd, const char *target, const char **args);
 int
 irc_cmd_rename(struct irc_conn *irc, const char *cmd, const char *target, const char **args);
+int
+irc_cmd_upload(struct irc_conn *irc, const char *cmd, const char *target, const char **args);
 int
 irc_cmd_lusers(struct irc_conn *irc, const char *cmd, const char *target, const char **args);
 int
