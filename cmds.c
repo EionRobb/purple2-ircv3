@@ -1215,12 +1215,103 @@ irc_cmd_chathistory(struct irc_conn *irc, const char *cmd, const char *target, c
 }
 
 int
+irc_cmd_chanavatar(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
+{
+	char *buf;
+	PurpleConversation *convo;
+	const char *chan = NULL;
+	const char *avatar_url = NULL;
+
+	if (target && irc_ischannel(target)) {
+		chan = target;
+		if (args && args[0] && *args[0])
+			avatar_url = args[0];
+	} else if (args && args[0] && *args[0]) {
+		gchar **parts = g_strsplit(args[0], " ", 2);
+		if (parts && parts[0] && irc_ischannel(parts[0])) {
+			chan = parts[0];
+			if (parts[1] && *parts[1])
+				avatar_url = parts[1];
+		}
+		g_strfreev(parts);
+	}
+
+	if (!chan) {
+		convo = purple_find_conversation_with_account(PURPLE_CONV_TYPE_ANY, target, irc->account);
+		if (convo)
+			purple_conversation_write(convo, "", _("chanavatar can only be used in or for a channel."), PURPLE_MESSAGE_ERROR, time(NULL));
+		return 0;
+	}
+
+	if (avatar_url && *avatar_url) {
+		if (irc->cap_metadata_2) {
+			buf = irc_format(irc, "vvvv:", "METADATA", chan, "SET", "avatar", avatar_url);
+			irc_send(irc, buf);
+			g_free(buf);
+		}
+		buf = g_strdup_printf(_("Channel %s avatar URL set to: %s"), chan, avatar_url);
+	} else {
+		if (irc->cap_metadata_2) {
+			buf = irc_format(irc, "vvvv", "METADATA", chan, "SET", "avatar");
+			irc_send(irc, buf);
+			g_free(buf);
+		}
+		buf = g_strdup_printf(_("Channel %s avatar URL cleared."), chan);
+	}
+
+	convo = purple_find_conversation_with_account(PURPLE_CONV_TYPE_CHAT, chan, irc->account);
+	if (convo) {
+		purple_conversation_write(convo, "", buf, PURPLE_MESSAGE_SYSTEM | PURPLE_MESSAGE_NO_LOG, time(NULL));
+	} else {
+		PurpleConnection *gc = purple_account_get_connection(irc->account);
+		if (gc)
+			purple_notify_info(gc, _("Channel Avatar"), chan, buf);
+	}
+	g_free(buf);
+
+	return 0;
+}
+
+int
 irc_cmd_avatar(struct irc_conn *irc, const char *cmd, const char *target, const char **args)
 {
 	char *buf;
 	PurpleConversation *convo;
 
 	if (args && args[0] && *args[0]) {
+		gchar **parts = g_strsplit(args[0], " ", 2);
+		if (parts && parts[0] && irc_ischannel(parts[0])) {
+			const char *chan = parts[0];
+			const char *avatar_url = parts[1];
+			if (avatar_url && *avatar_url) {
+				if (irc->cap_metadata_2) {
+					buf = irc_format(irc, "vvvv:", "METADATA", chan, "SET", "avatar", avatar_url);
+					irc_send(irc, buf);
+					g_free(buf);
+				}
+				buf = g_strdup_printf(_("Channel %s avatar URL set to: %s"), chan, avatar_url);
+			} else {
+				if (irc->cap_metadata_2) {
+					buf = irc_format(irc, "vvvv", "METADATA", chan, "SET", "avatar");
+					irc_send(irc, buf);
+					g_free(buf);
+				}
+				buf = g_strdup_printf(_("Channel %s avatar URL cleared."), chan);
+			}
+			convo = purple_find_conversation_with_account(PURPLE_CONV_TYPE_CHAT, chan, irc->account);
+			if (convo) {
+				purple_conversation_write(convo, "", buf, PURPLE_MESSAGE_SYSTEM | PURPLE_MESSAGE_NO_LOG, time(NULL));
+			} else {
+				PurpleConnection *gc = purple_account_get_connection(irc->account);
+				if (gc)
+					purple_notify_info(gc, _("Channel Avatar"), chan, buf);
+			}
+			g_free(buf);
+			g_strfreev(parts);
+			return 0;
+		}
+		g_strfreev(parts);
+
 		purple_account_set_string(irc->account, "avatar_url", args[0]);
 		if (irc->cap_metadata_2) {
 			buf = irc_format(irc, "vvvv:", "METADATA", "*", "SET", "avatar", args[0]);

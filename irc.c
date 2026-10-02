@@ -1697,6 +1697,45 @@ static PurplePluginInfo info = {
 };
 
 static void
+irc_blist_node_added_cb(PurpleBlistNode *node, gpointer data)
+{
+	PurpleChat *chat;
+	PurpleAccount *account;
+	PurpleConversation *convo;
+	const char *display_name;
+	PurpleConnection *gc;
+	struct irc_conn *irc;
+
+	if (!PURPLE_BLIST_NODE_IS_CHAT(node))
+		return;
+
+	chat = (PurpleChat *)node;
+	account = purple_chat_get_account(chat);
+	if (!account || g_strcmp0(purple_account_get_protocol_id(account), "prpl-eionrobb-ircv3") != 0)
+		return;
+
+	gc = purple_account_get_connection(account);
+	if (!gc || !gc->proto_data)
+		return;
+	irc = gc->proto_data;
+
+	convo = purple_find_conversation_with_account(PURPLE_CONV_TYPE_CHAT, purple_chat_get_name(chat), account);
+	if (convo) {
+		display_name = purple_conversation_get_data(convo, "display-name");
+		if (display_name && *display_name) {
+			purple_blist_node_set_string(node, "display-name", display_name);
+			purple_blist_alias_chat(chat, display_name);
+		}
+	}
+
+	if (irc->cap_metadata_2) {
+		char *buf = irc_format(irc, "vvvv", "METADATA", purple_chat_get_name(chat), "GET", "avatar display-name homepage color url");
+		irc_send(irc, buf);
+		g_free(buf);
+	}
+}
+
+static void
 _init_plugin(PurplePlugin *plugin)
 {
 	PurplePluginProtocolInfoExt *prpl_info_ext = g_new0(PurplePluginProtocolInfoExt, 1);
@@ -1835,6 +1874,8 @@ _init_plugin(PurplePlugin *plugin)
 	purple_prefs_remove("/plugins/prpl/irc");
 
 	irc_register_commands();
+
+	purple_signal_connect(purple_blist_get_handle(), "blist-node-added", plugin, PURPLE_CALLBACK(irc_blist_node_added_cb), NULL);
 }
 
 void

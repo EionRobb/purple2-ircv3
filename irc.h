@@ -501,6 +501,8 @@ irc_cmd_info(struct irc_conn *irc, const char *cmd, const char *target, const ch
 int
 irc_cmd_avatar(struct irc_conn *irc, const char *cmd, const char *target, const char **args);
 int
+irc_cmd_chanavatar(struct irc_conn *irc, const char *cmd, const char *target, const char **args);
+int
 irc_cmd_stats(struct irc_conn *irc, const char *cmd, const char *target, const char **args);
 int
 irc_cmd_setname(struct irc_conn *irc, const char *cmd, const char *target, const char **args);

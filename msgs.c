@@ -179,7 +179,7 @@ irc_connected(struct irc_conn *irc, const char *nick)
 		irc->timer = purple_timeout_add_seconds(45, (GSourceFunc) irc_blist_timeout, (gpointer) irc);
 
 	if (irc->cap_metadata_2) {
-		char *buf = irc_format(irc, "v", "METADATA * SUB avatar display-name pronouns status homepage bot color");
+		char *buf = irc_format(irc, "v", "METADATA * SUB avatar display-name pronouns status homepage bot color url");
 		irc_send(irc, buf);
 		g_free(buf);
 
@@ -1736,6 +1736,12 @@ irc_msg_join(struct irc_conn *irc, const char *name, const char *from, char **ar
 
 		// Get the real name and user host for all participants.
 		irc_send_who(irc, chan);
+
+		if (irc->cap_metadata_2) {
+			char *buf = irc_format(irc, "vvvv", "METADATA", chan, "GET", "avatar display-name homepage color url");
+			irc_send(irc, buf);
+			g_free(buf);
+		}
 
 		if (irc->cap_chathistory) {
 			guint limit = irc->chathistory_limit > 0 ? irc->chathistory_limit : 50;
@@ -3464,7 +3470,7 @@ irc_msg_ignore(struct irc_conn *irc, const char *name, const char *from, char **
 
 struct irc_avatar_fetch {
 	struct irc_conn *irc;
-	char *nick;
+	char *target;
 	char *url;
 };
 
@@ -3473,12 +3479,26 @@ irc_avatar_fetch_cb(PurpleUtilFetchUrlData *url_data, gpointer user_data, const 
 {
 	struct irc_avatar_fetch *req = user_data;
 	if (error_message == NULL && len > 0) {
-		purple_buddy_icons_set_for_user(req->irc->account, req->nick, g_memdup((gpointer) url_text, len), len, req->url);
+		if (irc_ischannel(req->target)) {
+			PurpleChat *chat = purple_blist_find_chat(req->irc->account, req->target);
+			PurpleConversation *convo = purple_find_conversation_with_account(PURPLE_CONV_TYPE_CHAT, req->target, req->irc->account);
+			if (chat) {
+				purple_buddy_icons_node_set_custom_icon(PURPLE_BLIST_NODE(chat), (guchar *)g_memdup(url_text, len), len);
+				purple_blist_node_set_string(PURPLE_BLIST_NODE(chat), "avatar_url", req->url);
+			}
+			if (convo) {
+				g_free(purple_conversation_get_data(convo, "avatar_url"));
+				purple_conversation_set_data(convo, "avatar_url", g_strdup(req->url));
+				purple_conversation_update(convo, PURPLE_CONV_UPDATE_ICON);
+			}
+		} else {
+			purple_buddy_icons_set_for_user(req->irc->account, req->target, g_memdup((gpointer) url_text, len), len, req->url);
+		}
 	} else if (error_message != NULL) {
-		purple_debug_warning("irc", "Failed to fetch avatar for %s: %s\n", req->nick, error_message);
+		purple_debug_warning("irc", "Failed to fetch avatar for %s: %s\n", req->target, error_message);
 	}
 	g_free(req->url);
-	g_free(req->nick);
+	g_free(req->target);
 	g_free(req);
 }
 
@@ -3488,10 +3508,16 @@ irc_msg_metadata(struct irc_conn *irc, const char *name, const char *from, char 
 	const char *target, *key, *value;
 	PurpleConnection *gc = purple_account_get_connection(irc->account);
 	const char *user_target;
-	PurpleBuddy *buddy;
+	PurpleBuddy *buddy = NULL;
 	GSList *chats;
+	gboolean is_channel;
 
-	if (g_strcmp0(name, "761") == 0) {
+	if (g_strcmp0(name, "766") == 0) {
+		/* 766 <client> <target> <key> :<info> */
+		target = args[1];
+		key = args[2];
+		value = NULL;
+	} else if (g_strcmp0(name, "761") == 0) {
 		/* 761 <client> <target> <key> <visibility> :<value> */
 		target = args[1];
 		key = args[2];
@@ -3503,43 +3529,94 @@ irc_msg_metadata(struct irc_conn *irc, const char *name, const char *from, char 
 		value = args[3];
 	}
 
-	if (!target || !key)
+	if (!target || !*target || !key || !*key)
 		return;
 
-	user_target = (g_strcmp0(target, "*") == 0 && gc) ? purple_connection_get_display_name(gc) : target;
-	buddy = purple_find_buddy(irc->account, user_target);
+	is_channel = irc_ischannel(target);
+	user_target = (!is_channel && g_strcmp0(target, "*") == 0 && gc) ? purple_connection_get_display_name(gc) : target;
+	if (!is_channel)
+		buddy = purple_find_buddy(irc->account, user_target);
 
 	if (g_strcmp0(key, "avatar") == 0) {
 		if (value && *value) {
 			const char *url_to_fetch = value;
-			const char *existing_url = purple_buddy_icons_get_checksum_for_user(buddy);
+			char *expanded_url = NULL;
+			const char *existing_url = NULL;
+
+			if (strstr(value, "{size}")) {
+				expanded_url = purple_strreplace(value, "{size}", "64");
+				url_to_fetch = expanded_url;
+			}
+
+			if (is_channel) {
+				PurpleChat *chat = purple_blist_find_chat(irc->account, target);
+				PurpleConversation *convo = purple_find_conversation_with_account(PURPLE_CONV_TYPE_CHAT, target, irc->account);
+				if (chat) {
+					existing_url = purple_blist_node_get_string(PURPLE_BLIST_NODE(chat), "avatar_url");
+				} else if (convo) {
+					existing_url = purple_conversation_get_data(convo, "avatar_url");
+				}
+			} else {
+				existing_url = purple_buddy_icons_get_checksum_for_user(buddy);
+			}
+
 			if (g_strcmp0(existing_url, url_to_fetch) != 0) {
 				struct irc_avatar_fetch *req;
 
 				req = g_new0(struct irc_avatar_fetch, 1);
 				req->irc = irc;
-				req->nick = g_strdup(user_target);
+				req->target = g_strdup(is_channel ? target : user_target);
 				req->url = g_strdup(url_to_fetch);
 				purple_util_fetch_url_request_len_with_account(irc->account, url_to_fetch, TRUE, purple_core_get_ui(), TRUE, NULL, FALSE, 10 * 1024 * 1024, irc_avatar_fetch_cb, req);
 			}
+			g_free(expanded_url);
 		} else {
 			/* Avatar cleared */
-			purple_buddy_icons_set_for_user(irc->account, user_target, NULL, 0, NULL);
+			if (is_channel) {
+				PurpleChat *chat = purple_blist_find_chat(irc->account, target);
+				PurpleConversation *convo = purple_find_conversation_with_account(PURPLE_CONV_TYPE_CHAT, target, irc->account);
+				if (chat) {
+					purple_buddy_icons_node_set_custom_icon(PURPLE_BLIST_NODE(chat), NULL, 0);
+					purple_blist_node_remove_setting(PURPLE_BLIST_NODE(chat), "avatar_url");
+				}
+				if (convo) {
+					g_free(purple_conversation_get_data(convo, "avatar_url"));
+					purple_conversation_set_data(convo, "avatar_url", NULL);
+					purple_conversation_update(convo, PURPLE_CONV_UPDATE_ICON);
+				}
+			} else {
+				purple_buddy_icons_set_for_user(irc->account, user_target, NULL, 0, NULL);
+			}
 		}
 	} else if (g_strcmp0(key, "display-name") == 0) {
-		if (buddy) {
-			purple_blist_node_set_string(PURPLE_BLIST_NODE(buddy), "display-name", (value && *value) ? value : NULL);
-		}
-		if (gc) {
-			serv_got_alias(gc, user_target, (value && *value) ? value : NULL);
-			chats = gc->buddy_chats;
-			while (chats) {
-				PurpleConvChat *chat = PURPLE_CONV_CHAT(chats->data);
-				PurpleConvChatBuddy *cb = purple_conv_chat_cb_find(chat, user_target);
-				if (cb) {
-					purple_conv_chat_cb_set_attribute(chat, cb, "display-name", (value && *value) ? value : NULL);
+		if (is_channel) {
+			PurpleChat *chat = purple_blist_find_chat(irc->account, target);
+			PurpleConversation *convo = purple_find_conversation_with_account(PURPLE_CONV_TYPE_CHAT, target, irc->account);
+			const char *disp_name = (value && *value) ? value : NULL;
+			if (chat) {
+				purple_blist_node_set_string(PURPLE_BLIST_NODE(chat), "display-name", disp_name);
+				purple_blist_alias_chat(chat, disp_name ? disp_name : target);
+			}
+			if (convo) {
+				g_free(purple_conversation_get_data(convo, "display-name"));
+				purple_conversation_set_data(convo, "display-name", disp_name ? g_strdup(disp_name) : NULL);
+				purple_conversation_set_title(convo, disp_name ? disp_name : target);
+			}
+		} else {
+			if (buddy) {
+				purple_blist_node_set_string(PURPLE_BLIST_NODE(buddy), "display-name", (value && *value) ? value : NULL);
+			}
+			if (gc) {
+				serv_got_alias(gc, user_target, (value && *value) ? value : NULL);
+				chats = gc->buddy_chats;
+				while (chats) {
+					PurpleConvChat *chat = PURPLE_CONV_CHAT(chats->data);
+					PurpleConvChatBuddy *cb = purple_conv_chat_cb_find(chat, user_target);
+					if (cb) {
+						purple_conv_chat_cb_set_attribute(chat, cb, "display-name", (value && *value) ? value : NULL);
+					}
+					chats = chats->next;
 				}
-				chats = chats->next;
 			}
 		}
 	} else if (g_strcmp0(key, "pronouns") == 0) {
@@ -3573,11 +3650,18 @@ irc_msg_metadata(struct irc_conn *irc, const char *name, const char *from, char 
 			}
 		}
 	} else if (g_strcmp0(key, "homepage") == 0 || g_strcmp0(key, "url") == 0) {
-		if (irc_ischannel(target)) {
+		if (is_channel) {
+			PurpleChat *chat = purple_blist_find_chat(irc->account, target);
 			PurpleConversation *convo = purple_find_conversation_with_account(PURPLE_CONV_TYPE_CHAT, target, irc->account);
+			if (chat) {
+				purple_blist_node_set_string(PURPLE_BLIST_NODE(chat), "homepage", (value && *value) ? value : NULL);
+				purple_blist_node_set_string(PURPLE_BLIST_NODE(chat), "url", (value && *value) ? value : NULL);
+			}
 			if (convo) {
 				g_free(purple_conversation_get_data(convo, "homepage"));
 				purple_conversation_set_data(convo, "homepage", (value && *value) ? g_strdup(value) : NULL);
+				g_free(purple_conversation_get_data(convo, "url"));
+				purple_conversation_set_data(convo, "url", (value && *value) ? g_strdup(value) : NULL);
 			}
 		} else {
 			if (buddy) {
@@ -3612,8 +3696,12 @@ irc_msg_metadata(struct irc_conn *irc, const char *name, const char *from, char 
 			}
 		}
 	} else if (g_strcmp0(key, "color") == 0) {
-		if (irc_ischannel(target)) {
+		if (is_channel) {
+			PurpleChat *chat = purple_blist_find_chat(irc->account, target);
 			PurpleConversation *convo = purple_find_conversation_with_account(PURPLE_CONV_TYPE_CHAT, target, irc->account);
+			if (chat) {
+				purple_blist_node_set_string(PURPLE_BLIST_NODE(chat), "color", (value && *value) ? value : NULL);
+			}
 			if (convo) {
 				g_free(purple_conversation_get_data(convo, "color"));
 				purple_conversation_set_data(convo, "color", (value && *value) ? g_strdup(value) : NULL);

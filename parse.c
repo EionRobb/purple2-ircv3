@@ -170,6 +170,7 @@ static struct _irc_msg {
 	{ "733", "n:", 1, irc_msg_ignore },	   /* RPL_ENDOFMONLIST (IRCv3)	*/
 	{ "734", "nvv:", 3, irc_msg_monfull },	   /* ERR_MONLISTFULL (IRCv3)	*/
 	{ "761", "nvvv:", 4, irc_msg_metadata },   /* RPL_KEYVALUE metadata     */
+	{ "766", "nvv:", 3, irc_msg_metadata },   /* RPL_KEYNOTSET metadata    */
 #ifdef HAVE_CYRUS_SASL
 	{ "903", "*", 0, irc_msg_authok },				  /* SASL auth successful		*/
 	{ "904", "*", 0, irc_msg_authtryagain },		  /* SASL auth failed, can recover*/
@@ -216,7 +217,8 @@ static struct _irc_user_cmd {
 	{ "action", ":", irc_cmd_ctcp_action, N_("action &lt;action to perform&gt;:  Perform an action.") },
 	{ "admin", ":", irc_cmd_admin, N_("admin [server]:  Display administrative information about the server.") },
 	{ "authserv", ":", irc_cmd_service, N_("authserv:  Send a command to authserv") },
-	{ "avatar", ":", irc_cmd_avatar, N_("avatar [url]:  Set or clear your avatar URL.") },
+	{ "avatar", ":", irc_cmd_avatar, N_("avatar [#channel] [url]:  Set or clear your own or a channel's avatar URL.") },
+	{ "chanavatar", ":", irc_cmd_chanavatar, N_("chanavatar [url]:  Set or clear the current channel's avatar URL.") },
 	{ "away", ":", irc_cmd_away, N_("away [message]:  Set an away message, or use no message to return from being away.") },
 	{ "ban", ":", irc_cmd_ban, N_("ban [nick|mask]:  Ban a user or mask from the channel, or list current bans.") },
 	{ "botserv", ":", irc_cmd_service, N_("botserv:  Send a command to botserv") },
