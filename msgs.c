@@ -1160,14 +1160,10 @@ void
 irc_msg_unknown(struct irc_conn *irc, const char *name, const char *from, char **args)
 {
 	PurpleConnection *gc = purple_account_get_connection(irc->account);
-	char *buf;
 
 	g_return_if_fail(gc);
 
-	buf = g_strdup_printf(_("Unknown message '%s'"), args[1]);
-	//purple_notify_error(gc, _("Unknown message"), buf, _("The IRC server received a message it did not understand."));
-	purple_debug_error("irc", buf);
-	g_free(buf);
+	purple_debug_error("irc", _("Unknown message '%s'"), args[1]);
 }
 
 void
@@ -3483,7 +3479,7 @@ irc_avatar_fetch_cb(PurpleUtilFetchUrlData *url_data, gpointer user_data, const 
 			PurpleChat *chat = purple_blist_find_chat(req->irc->account, req->target);
 			PurpleConversation *convo = purple_find_conversation_with_account(PURPLE_CONV_TYPE_CHAT, req->target, req->irc->account);
 			if (chat) {
-				purple_buddy_icons_node_set_custom_icon(PURPLE_BLIST_NODE(chat), (guchar *)g_memdup(url_text, len), len);
+				purple_buddy_icons_node_set_custom_icon(PURPLE_BLIST_NODE(chat), (guchar *)g_memdup2(url_text, len), len);
 				purple_blist_node_set_string(PURPLE_BLIST_NODE(chat), "avatar_url", req->url);
 			}
 			if (convo) {
@@ -3492,7 +3488,7 @@ irc_avatar_fetch_cb(PurpleUtilFetchUrlData *url_data, gpointer user_data, const 
 				purple_conversation_update(convo, PURPLE_CONV_UPDATE_ICON);
 			}
 		} else {
-			purple_buddy_icons_set_for_user(req->irc->account, req->target, g_memdup((gpointer) url_text, len), len, req->url);
+			purple_buddy_icons_set_for_user(req->irc->account, req->target, g_memdup2((gpointer) url_text, len), len, req->url);
 		}
 	} else if (error_message != NULL) {
 		purple_debug_warning("irc", "Failed to fetch avatar for %s: %s\n", req->target, error_message);

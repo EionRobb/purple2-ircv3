@@ -1790,8 +1790,13 @@ _init_plugin(PurplePlugin *plugin)
 	prpl_info->new_xfer = irc_dccsend_new_xfer;
 	prpl_info->send_raw = irc_send_raw;
 	prpl_info->struct_size = sizeof(PurplePluginProtocolInfoExt);
+#if PURPLE_VERSION_CHECK(2, 14, 0)
+	prpl_info->chat_can_receive_file = irc_chat_can_receive_file;
+	prpl_info->chat_send_file = irc_chat_send_file;
+#else
 	prpl_info_ext->chat_can_receive_file = irc_chat_can_receive_file;
 	prpl_info_ext->chat_send_file = irc_chat_send_file;
+#endif
 
 	split = purple_account_user_split_new(_("Server"), IRC_DEFAULT_SERVER, '@');
 	prpl_info->user_splits = g_list_append(prpl_info->user_splits, split);
